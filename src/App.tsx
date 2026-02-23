@@ -96,45 +96,49 @@ interface SwipeState {
 }
 
 const useSwipeToDelete = (onSwipeComplete: () => void) => {
-  const [swipeState, setSwipeState] = useState<SwipeState>({
+  const swipeRef = React.useRef<SwipeState>({
     isSwiping: false,
     startX: 0,
     currentX: 0
   });
 
+  const [, forceUpdate] = React.useState(0);
+
   const handleTouchStart = (e: React.TouchEvent) => {
-    setSwipeState({
+    swipeRef.current = {
       isSwiping: true,
       startX: e.touches[0].clientX,
       currentX: e.touches[0].clientX
-    });
+    };
+    forceUpdate(n => n + 1);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!swipeState.isSwiping) return;
-    setSwipeState(prev => ({
-      ...prev,
+    if (!swipeRef.current.isSwiping) return;
+    swipeRef.current = {
+      ...swipeRef.current,
       currentX: e.touches[0].clientX
-    }));
+    };
+    forceUpdate(n => n + 1);
   };
 
   const handleTouchEnd = () => {
-    if (!swipeState.isSwiping) return;
-    const diff = swipeState.startX - swipeState.currentX;
+    if (!swipeRef.current.isSwiping) return;
+    const diff = swipeRef.current.startX - swipeRef.current.currentX;
     // Swipe left more than 80px to delete
     if (diff > 80) {
       onSwipeComplete();
     }
-    setSwipeState({
+    swipeRef.current = {
       isSwiping: false,
       startX: 0,
       currentX: 0
-    });
+    };
+    forceUpdate(n => n + 1);
   };
 
   return {
-    swipeState,
-    swipeOffset: swipeState.isSwiping ? Math.min(0, swipeState.currentX - swipeState.startX) : 0,
+    swipeOffset: swipeRef.current.isSwiping ? Math.min(0, swipeRef.current.currentX - swipeRef.current.startX) : 0,
     handlers: {
       onTouchStart: handleTouchStart,
       onTouchMove: handleTouchMove,
@@ -716,6 +720,11 @@ const ShadowReader: React.FC<{
         })
       });
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `API request failed: ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (data.base_resp?.status_code !== 0) {
@@ -728,17 +737,17 @@ const ShadowReader: React.FC<{
         const bytes = new Uint8Array(hex.match(/.{1,2}/g).map((byte: string) => parseInt(byte, 16)));
         const blob = new Blob([bytes], { type: 'audio/mp3' });
         const url = URL.createObjectURL(blob);
-        
+
         // Create audio object
         const newAudio = new Audio(url);
         setAudio(newAudio); // Assign immediately
-        
+
         // Cache the result
         AUDIO_CACHE.set(cacheKey, url);
-        
+
         // Parse lyrics and wait for metadata to calculate timestamps
         const rawSegments = parseLyrics(text);
-        
+
         newAudio.onloadedmetadata = () => {
           const duration = newAudio.duration;
           const timedSegments = calculateLyricsTimestamps(rawSegments, duration);
@@ -747,11 +756,14 @@ const ShadowReader: React.FC<{
           newAudio.play().catch(e => console.error("Playback failed:", e));
           setIsPlaying(true);
         };
+      } else {
+        throw new Error('No audio data returned from API');
       }
 
     } catch (error) {
       console.error('Generation error:', error);
-      alert('Failed to generate speech. Please check console for details.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to generate speech: ${errorMessage}`);
       setMode('settings'); // Go back to settings on error
     } finally {
       setIsLoading(false);
@@ -1591,7 +1603,7 @@ const NotesDetail: React.FC<{
     >
       {/* 1. Header */}
       <header className="sticky top-0 z-20 bg-[#09090b]/80 backdrop-blur-md border-b border-white/5 px-4 py-3 flex items-center gap-4">
-        <button 
+        <button
           onClick={handleBack}
           className="p-2 -ml-2 rounded-full text-neutral-400 hover:bg-white/5 hover:text-white transition-colors"
         >
@@ -1601,7 +1613,16 @@ const NotesDetail: React.FC<{
           <h1 className="text-sm font-medium truncate text-neutral-200">{note.title}</h1>
           <p className="text-[10px] text-neutral-500 font-mono uppercase tracking-wider mt-0.5">{note.date} • Daily Review</p>
         </div>
-        <button 
+        {isEditing && rawText && (
+          <button
+            onClick={() => setRawText('')}
+            className="p-2 rounded-full text-neutral-400 hover:bg-white/5 hover:text-red-400 transition-colors"
+            title="Clear all"
+          >
+            <Trash2 size={18} />
+          </button>
+        )}
+        <button
           onClick={() => isEditing ? handleSave() : setIsEditing(true)}
           className={`p-2 rounded-full transition-colors ${isEditing ? 'text-teal-400 bg-teal-950/30' : 'text-neutral-400 hover:bg-white/5 hover:text-white'}`}
         >
@@ -1632,7 +1653,7 @@ const NotesDetail: React.FC<{
                 textarea.selectionStart = textarea.selectionEnd = start + pastedText.length;
               }, 0);
             }}
-            className="w-full flex-1 bg-[#18181b] text-neutral-300 p-4 rounded-2xl border border-white/10 focus:border-teal-500/50 outline-none resize-none font-mono text-sm leading-relaxed"
+            className="w-full flex-1 min-h-[200px] bg-[#18181b] text-neutral-300 p-4 rounded-2xl border border-white/10 focus:border-teal-500/50 outline-none resize-none font-mono text-sm leading-relaxed overflow-y-auto"
             placeholder="Paste your raw notes here..."
           />
         </motion.div>
