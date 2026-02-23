@@ -292,19 +292,19 @@ const parseNoteContent = (raw: string) => {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // Support both ## format and emoji-only format
-    if (trimmed.startsWith('## ✍️ 标题') || trimmed === '✍️ 标题') { currentSection = 'title'; continue; }
-    if (trimmed.startsWith('## 💬 对话内容') || trimmed === '💬 对话内容') { currentSection = 'chat'; continue; }
-    if (trimmed.startsWith('## 🏷️ 标签') || trimmed === '🏷️ 标签') { currentSection = 'tags'; continue; }
-    if (trimmed.startsWith('## 🔄 表达升级') || trimmed === '🔄 表达升级') { currentSection = 'upgrades'; continue; }
-    if (trimmed.startsWith('## 🧩 实用句型') || trimmed === '🧩 实用句型') { currentSection = 'patterns'; continue; }
-    if (trimmed.startsWith('## 🗣️ 跟读材料') || trimmed === '🗣️ 跟读材料') { currentSection = 'shadowing'; continue; }
-    if (trimmed.startsWith('## 🎭 情景重练') || trimmed === '🎭 情景重练') { currentSection = 'scenario'; continue; }
+    // Support both ## format and emoji-only format (more flexible matching)
+    if (/^#{0,2}\s*✍️\s*标题/.test(trimmed)) { currentSection = 'title'; continue; }
+    if (/^#{0,2}\s*💬\s*对话内容/.test(trimmed)) { currentSection = 'chat'; continue; }
+    if (/^#{0,2}\s*🏷️\s*标签/.test(trimmed)) { currentSection = 'tags'; continue; }
+    if (/^#{0,2}\s*🔄\s*表达升级/.test(trimmed)) { currentSection = 'upgrades'; continue; }
+    if (/^#{0,2}\s*🧩\s*实用句型/.test(trimmed)) { currentSection = 'patterns'; continue; }
+    if (/^#{0,2}\s*🗣️\s*跟读材料/.test(trimmed)) { currentSection = 'shadowing'; continue; }
+    if (/^#{0,2}\s*🎭\s*情景重练/.test(trimmed)) { currentSection = 'scenario'; continue; }
 
     if (currentSection === 'title') {
       if (!sections.title) sections.title = trimmed;
     } else if (currentSection === 'tags') {
-      // Parse tags like #宠物日常 #英语表达提升
+      // Parse tags like #宠物日常 #英语表达提升 (may include tags on same line as header)
       const tagMatches = trimmed.match(/#[^\s#]+/g);
       if (tagMatches) {
         sections.tags.push(...tagMatches.map(t => t.replace('#', '')));
@@ -1639,8 +1639,8 @@ const NotesDetail: React.FC<{
   };
 
   const handleSave = () => {
-    // Extract title from content: ## ✍️ 标题 or ✍️ 标题 (next line)
-    const titleMatch = rawText.match(/(?:## )?✍️ 标题\s*\n(.+)/);
+    // Extract title from content: ## ✍️ 标题 or ✍️ 标题 (next line) - flexible matching
+    const titleMatch = rawText.match(/(?:#{0,2}\s*✍️\s*标题)\s*\n(.+)/i);
     let extractedTitle = note.title;
 
     if (titleMatch) {
@@ -1659,8 +1659,8 @@ const NotesDetail: React.FC<{
     if (tagsMatch) {
       newTags = [...new Set(tagsMatch.map(t => t.trim().replace(/^#/, '')))];
     }
-    // Also check for 🏷️ 标签 section
-    const tagSectionMatch = rawText.match(/🏷️ 标签\s*\n([\s\S]*?)(?=\n[^#\n]|$)/);
+    // Also check for 🏷️ 标签 section (flexible matching)
+    const tagSectionMatch = rawText.match(/(?:🏷️\s*标签)\s*\n?([\s\S]*?)(?=\n#{0,2}\s*\S|$)/i);
     if (tagSectionMatch) {
       const tagLine = tagSectionMatch[1].trim();
       const sectionTags = tagLine.match(/#[^\s#.,!?;:]+/g);
