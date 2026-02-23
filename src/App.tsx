@@ -72,6 +72,20 @@ const setStorageItem = <T,>(key: string, value: T): void => {
 };
 
 // ==========================================
+// HOOK: TOUCH DEVICE DETECTION
+// ==========================================
+
+const useIsTouchDevice = () => {
+  const [isTouch, setIsTouch] = useState(false);
+
+  useEffect(() => {
+    setIsTouch('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  }, []);
+
+  return isTouch;
+};
+
+// ==========================================
 // SHARED TYPES & CONSTANTS
 // ==========================================
 
@@ -1324,14 +1338,15 @@ const ShadowReader: React.FC<{
 // COMPONENT: NOTES LIST
 // ==========================================
 
-const NotesList: React.FC<{ 
-  notes: Note[], 
+const NotesList: React.FC<{
+  notes: Note[],
   onSelectNote: (note: Note) => void,
   onAddNote: () => void,
   onDeleteNote: (id: string) => void,
   filterTag: string | null,
-  onSetFilterTag: (tag: string | null) => void
-}> = ({ notes, onSelectNote, onAddNote, onDeleteNote, filterTag, onSetFilterTag }) => {
+  onSetFilterTag: (tag: string | null) => void,
+  isTouch?: boolean
+}> = ({ notes, onSelectNote, onAddNote, onDeleteNote, filterTag, onSetFilterTag, isTouch = false }) => {
   
   // Extract all unique tags
   const allTags = useMemo(() => {
@@ -1410,7 +1425,16 @@ const NotesList: React.FC<{
                       e.stopPropagation();
                       onDeleteNote(note.id);
                     }}
-                    className="p-1.5 text-neutral-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onContextMenu={(e) => {
+                      if (isTouch) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onDeleteNote(note.id);
+                      }
+                    }}
+                    className={`p-1.5 text-neutral-600 hover:text-red-400 transition-opacity ${
+                      isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    }`}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -1525,6 +1549,20 @@ const NotesDetail: React.FC<{
           <textarea
             value={rawText}
             onChange={(e) => setRawText(e.target.value)}
+            onPaste={(e) => {
+              // Handle paste for better mobile support
+              e.preventDefault();
+              const pastedText = e.clipboardData.getData('text/plain');
+              const textarea = e.target as HTMLTextAreaElement;
+              const start = textarea.selectionStart;
+              const end = textarea.selectionEnd;
+              const newText = rawText.substring(0, start) + pastedText + rawText.substring(end);
+              setRawText(newText);
+              // Set cursor position after pasted text
+              setTimeout(() => {
+                textarea.selectionStart = textarea.selectionEnd = start + pastedText.length;
+              }, 0);
+            }}
             className="w-full flex-1 bg-[#18181b] text-neutral-300 p-4 rounded-2xl border border-white/10 focus:border-teal-500/50 outline-none resize-none font-mono text-sm leading-relaxed"
             placeholder="Paste your raw notes here..."
           />
@@ -1803,8 +1841,9 @@ const NotesDetail: React.FC<{
 const VoiceCollection: React.FC<{
   voices: VoiceItem[],
   onDeleteVoice: (id: string) => void,
-  onPlayVoice: (voice: VoiceItem) => void
-}> = ({ voices, onDeleteVoice, onPlayVoice }) => {
+  onPlayVoice: (voice: VoiceItem) => void,
+  isTouch?: boolean
+}> = ({ voices, onDeleteVoice, onPlayVoice, isTouch = false }) => {
   return (
     <motion.div 
       className="min-h-screen bg-[#09090b] text-[#e4e4e7] p-4 pb-24"
@@ -1841,7 +1880,16 @@ const VoiceCollection: React.FC<{
                       e.stopPropagation();
                       onDeleteVoice(voice.id);
                     }}
-                    className="p-1 text-neutral-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onContextMenu={(e) => {
+                      if (isTouch) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onDeleteVoice(voice.id);
+                      }
+                    }}
+                    className={`p-1 text-neutral-600 hover:text-red-400 transition-opacity ${
+                      isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    }`}
                     title="Delete"
                   >
                     <Trash2 size={14} />
@@ -1930,7 +1978,10 @@ export default function App() {
   const [notesView, setNotesView] = useState<NotesView>('list');
   const [shadowText, setShadowText] = useState<string | undefined>(undefined);
   const [shadowKey, setShadowKey] = useState(0); // Key to force remount/reset
-  
+
+  // Touch device detection
+  const isTouch = useIsTouchDevice();
+
   // Global State
   const [notes, setNotes] = useState<Note[]>(INITIAL_NOTES);
   const [savedVoices, setSavedVoices] = useState<VoiceItem[]>(() =>
@@ -2049,14 +2100,15 @@ Shadowing Practice
         return (
           <AnimatePresence mode="wait">
             {notesView === 'list' ? (
-              <NotesList 
-                key="list" 
+              <NotesList
+                key="list"
                 notes={notes}
-                onSelectNote={handleSelectNote} 
+                onSelectNote={handleSelectNote}
                 onAddNote={handleAddNote}
                 onDeleteNote={handleDeleteNote}
                 filterTag={filterTag}
                 onSetFilterTag={setFilterTag}
+                isTouch={isTouch}
               />
             ) : selectedNote ? (
               <NotesDetail 
@@ -2085,10 +2137,11 @@ Shadowing Practice
         );
       case 'voice':
         return (
-          <VoiceCollection 
+          <VoiceCollection
             voices={savedVoices}
             onDeleteVoice={handleDeleteVoice}
             onPlayVoice={handlePlayVoice}
+            isTouch={isTouch}
           />
         );
     }
