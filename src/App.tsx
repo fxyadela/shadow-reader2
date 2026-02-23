@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  ArrowLeft, 
-  MessageSquare, 
-  RefreshCw, 
-  ChevronDown, 
-  ChevronUp, 
-  Mic, 
-  Headphones, 
-  ArrowRight, 
+import {
+  ArrowLeft,
+  MessageSquare,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  Mic,
+  Headphones,
+  ArrowRight,
   ArrowDown,
   Quote,
-  Sparkles, 
+  Sparkles,
   Zap,
   Play,
   Pause,
@@ -42,6 +42,17 @@ import {
   Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+// ==========================================
+// API URL HELPER
+// ==========================================
+
+// Get the correct API base URL based on current location
+const getApiBaseUrl = () => {
+  const { protocol, hostname, port } = window.location;
+  // Use current host + port for API calls
+  return `${protocol}//${hostname}${port ? `:${port}` : ''}`;
+};
 
 // ==========================================
 // LOCAL STORAGE UTILITIES
@@ -96,25 +107,34 @@ interface SwipeState {
 }
 
 const useSwipeToDelete = (onSwipeComplete: () => void) => {
-  const swipeRef = React.useRef<SwipeState>({
+  const swipeRef = React.useRef<SwipeState & { hasSwiped: boolean; pendingDelete: boolean }>({
     isSwiping: false,
     startX: 0,
-    currentX: 0
+    currentX: 0,
+    hasSwiped: false,
+    pendingDelete: false
   });
 
   const [, forceUpdate] = React.useState(0);
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (swipeRef.current.pendingDelete) return;
     swipeRef.current = {
       isSwiping: true,
       startX: e.touches[0].clientX,
-      currentX: e.touches[0].clientX
+      currentX: e.touches[0].clientX,
+      hasSwiped: false,
+      pendingDelete: false
     };
     forceUpdate(n => n + 1);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!swipeRef.current.isSwiping) return;
+    if (!swipeRef.current.isSwiping || swipeRef.current.pendingDelete) return;
+    const diff = Math.abs(e.touches[0].clientX - swipeRef.current.startX);
+    if (diff > 10) {
+      swipeRef.current.hasSwiped = true;
+    }
     swipeRef.current = {
       ...swipeRef.current,
       currentX: e.touches[0].clientX
@@ -123,22 +143,50 @@ const useSwipeToDelete = (onSwipeComplete: () => void) => {
   };
 
   const handleTouchEnd = () => {
-    if (!swipeRef.current.isSwiping) return;
+    if (!swipeRef.current.isSwiping || swipeRef.current.pendingDelete) return;
     const diff = swipeRef.current.startX - swipeRef.current.currentX;
     // Swipe left more than 80px to delete
     if (diff > 80) {
-      onSwipeComplete();
+      // Mark as pending delete to prevent multiple triggers
+      swipeRef.current.pendingDelete = true;
+      // Delay the actual delete to allow touch event to complete
+      setTimeout(() => {
+        onSwipeComplete();
+        swipeRef.current = {
+          isSwiping: false,
+          startX: 0,
+          currentX: 0,
+          hasSwiped: false,
+          pendingDelete: false
+        };
+        forceUpdate(n => n + 1);
+      }, 50);
+      return;
     }
     swipeRef.current = {
       isSwiping: false,
       startX: 0,
-      currentX: 0
+      currentX: 0,
+      hasSwiped: false,
+      pendingDelete: false
     };
     forceUpdate(n => n + 1);
   };
 
+  const handleClick = (e: React.MouseEvent) => {
+    // Prevent click if user swiped
+    if (swipeRef.current.hasSwiped) {
+      e.preventDefault();
+      e.stopPropagation();
+      swipeRef.current.hasSwiped = false;
+      return false;
+    }
+    return true;
+  };
+
   return {
     swipeOffset: swipeRef.current.isSwiping ? Math.min(0, swipeRef.current.currentX - swipeRef.current.startX) : 0,
+    handleClick,
     handlers: {
       onTouchStart: handleTouchStart,
       onTouchMove: handleTouchMove,
@@ -689,7 +737,7 @@ const ShadowReader: React.FC<{
     }
     
     try {
-      const response = await fetch('/api/minimax/t2a', {
+      const response = await fetch(`${getApiBaseUrl()}/api/minimax/t2a`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -763,7 +811,12 @@ const ShadowReader: React.FC<{
     } catch (error) {
       console.error('Generation error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      alert(`Failed to generate speech: ${errorMessage}`);
+      // Provide more helpful error message
+      let detailedMessage = errorMessage;
+      if (errorMessage.includes('404') || errorMessage.includes('Failed to fetch')) {
+        detailedMessage = `${errorMessage}. Please make sure the server is running and you're on the same network.`;
+      }
+      alert(`Failed to generate speech: ${detailedMessage}`);
       setMode('settings'); // Go back to settings on error
     } finally {
       setIsLoading(false);
@@ -791,7 +844,7 @@ const ShadowReader: React.FC<{
       const translations: string[] = [];
 
       for (const segment of segments) {
-        const response = await fetch('/api/translate', {
+        const response = await fetch(`${getApiBaseUrl()}/api/translate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1483,10 +1536,10 @@ const NotesList: React.FC<{
             return (
               <div
                 key={note.id}
-                onClick={() => onSelectNote(note)}
+                onClick={!isTouch ? () => onSelectNote(note) : undefined}
                 {...(isTouch ? handlers : {})}
                 style={isTouch ? { transform: `translateX(${swipeOffset}px)`, transition: swipeOffset === 0 ? 'transform 0.3s' : 'none' } : undefined}
-                className="bg-[#18181b] border border-white/5 rounded-2xl p-5 active:scale-[0.98] transition-transform cursor-pointer hover:bg-white/[0.02] group relative"
+                className={`bg-[#18181b] border border-white/5 rounded-2xl p-5 active:scale-[0.98] transition-transform group relative ${!isTouch ? 'cursor-pointer hover:bg-white/[0.02]' : ''}`}
               >
                 {/* Delete hint background when swiping */}
                 {isTouch && swipeOffset < 0 && (
@@ -1504,13 +1557,6 @@ const NotesList: React.FC<{
                       onClick={(e) => {
                         e.stopPropagation();
                         onDeleteNote(note.id);
-                      }}
-                      onContextMenu={(e) => {
-                        if (isTouch) {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onDeleteNote(note.id);
-                        }
                       }}
                       className={`p-1.5 text-neutral-600 hover:text-red-400 transition-opacity ${
                         isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
@@ -1642,7 +1688,18 @@ const NotesDetail: React.FC<{
             onPaste={(e) => {
               // Handle paste for better mobile support
               e.preventDefault();
-              const pastedText = e.clipboardData.getData('text/plain');
+              // Try to get plain text, fallback to HTML if needed
+              let pastedText = e.clipboardData.getData('text/plain');
+              if (!pastedText) {
+                // Try HTML as fallback
+                pastedText = e.clipboardData.getData('text/html');
+                if (pastedText) {
+                  // Strip HTML tags to get plain text with markdown preserved
+                  pastedText = pastedText.replace(/<[^>]*>/g, '');
+                }
+              }
+              if (!pastedText) return;
+
               const textarea = e.target as HTMLTextAreaElement;
               const start = textarea.selectionStart;
               const end = textarea.selectionEnd;
