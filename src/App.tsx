@@ -140,7 +140,7 @@ const DEFAULT_NOTE: Note = {
   rawContent: DEFAULT_RAW_TEXT
 };
 
-const INITIAL_NOTES: Note[] = getStorageItem<Note[]>(STORAGE_KEYS.NOTES, [DEFAULT_NOTE]);
+const INITIAL_NOTES: Note[] = getStorageItem<Note[]>(STORAGE_KEYS.NOTES, []);
 
 // ==========================================
 // HELPER: PARSER
