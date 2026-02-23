@@ -26,6 +26,7 @@ async function startServer() {
 
   // API Routes
   app.post("/api/minimax/t2a", async (req, res) => {
+    console.log('[MiniMax TTS] Received request');
     try {
       const response = await fetch('https://api.minimax.io/v1/t2a_v2', {
         method: 'POST',
@@ -36,10 +37,11 @@ async function startServer() {
         body: JSON.stringify(req.body)
       });
 
+      console.log('[MiniMax TTS] Response status:', response.status);
       const data = await response.json();
       res.json(data);
     } catch (error) {
-      console.error('Proxy error:', error);
+      console.error('[MiniMax TTS] Proxy error:', error);
       res.status(500).json({ error: 'Failed to fetch from MiniMax API' });
     }
   });

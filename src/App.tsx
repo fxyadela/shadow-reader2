@@ -51,7 +51,8 @@ import { motion, AnimatePresence } from 'motion/react';
 const getApiBaseUrl = () => {
   const { protocol, hostname, port } = window.location;
   // Use current host + port for API calls
-  return `${protocol}//${hostname}${port ? `:${port}` : ''}`;
+  const portStr = port ? `:${port}` : '';
+  return `${protocol}//${hostname}${portStr}`;
 };
 
 // ==========================================
@@ -737,7 +738,9 @@ const ShadowReader: React.FC<{
     }
     
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/minimax/t2a`, {
+      const apiUrl = `${getApiBaseUrl()}/api/minimax/t2a`;
+      console.log('[TTS] Calling API:', apiUrl);
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
