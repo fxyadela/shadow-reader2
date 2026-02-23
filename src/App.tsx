@@ -86,6 +86,64 @@ const useIsTouchDevice = () => {
 };
 
 // ==========================================
+// HOOK: SWIPE TO DELETE
+// ==========================================
+
+interface SwipeState {
+  isSwiping: boolean;
+  startX: number;
+  currentX: number;
+}
+
+const useSwipeToDelete = (onSwipeComplete: () => void) => {
+  const [swipeState, setSwipeState] = useState<SwipeState>({
+    isSwiping: false,
+    startX: 0,
+    currentX: 0
+  });
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setSwipeState({
+      isSwiping: true,
+      startX: e.touches[0].clientX,
+      currentX: e.touches[0].clientX
+    });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!swipeState.isSwiping) return;
+    setSwipeState(prev => ({
+      ...prev,
+      currentX: e.touches[0].clientX
+    }));
+  };
+
+  const handleTouchEnd = () => {
+    if (!swipeState.isSwiping) return;
+    const diff = swipeState.startX - swipeState.currentX;
+    // Swipe left more than 80px to delete
+    if (diff > 80) {
+      onSwipeComplete();
+    }
+    setSwipeState({
+      isSwiping: false,
+      startX: 0,
+      currentX: 0
+    });
+  };
+
+  return {
+    swipeState,
+    swipeOffset: swipeState.isSwiping ? Math.min(0, swipeState.currentX - swipeState.startX) : 0,
+    handlers: {
+      onTouchStart: handleTouchStart,
+      onTouchMove: handleTouchMove,
+      onTouchEnd: handleTouchEnd
+    }
+  };
+};
+
+// ==========================================
 // SHARED TYPES & CONSTANTS
 // ==========================================
 
@@ -1408,46 +1466,57 @@ const NotesList: React.FC<{
             <p>No notes found.</p>
           </div>
         ) : (
-          filteredNotes.map(note => (
-            <div 
-              key={note.id}
-              onClick={() => onSelectNote(note)}
-              className="bg-[#18181b] border border-white/5 rounded-2xl p-5 active:scale-[0.98] transition-transform cursor-pointer hover:bg-white/[0.02] group relative"
-            >
-              <div className="flex justify-between items-start mb-3 gap-2">
-                <span className="bg-teal-950/30 text-teal-500/80 text-[10px] font-mono px-2 py-1 rounded-full border border-teal-900/30">
-                  Daily Review
-                </span>
-                <div className="flex items-center gap-2 ml-auto">
-                  <span className="text-neutral-500 text-xs font-mono">{note.date}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteNote(note.id);
-                    }}
-                    onContextMenu={(e) => {
-                      if (isTouch) {
-                        e.preventDefault();
+          filteredNotes.map(note => {
+            const { swipeOffset, handlers } = useSwipeToDelete(() => onDeleteNote(note.id));
+            return (
+              <div
+                key={note.id}
+                onClick={() => onSelectNote(note)}
+                {...(isTouch ? handlers : {})}
+                style={isTouch ? { transform: `translateX(${swipeOffset}px)`, transition: swipeOffset === 0 ? 'transform 0.3s' : 'none' } : undefined}
+                className="bg-[#18181b] border border-white/5 rounded-2xl p-5 active:scale-[0.98] transition-transform cursor-pointer hover:bg-white/[0.02] group relative"
+              >
+                {/* Delete hint background when swiping */}
+                {isTouch && swipeOffset < 0 && (
+                  <div className="absolute right-0 top-0 bottom-0 flex items-center justify-end pr-4 rounded-2xl bg-red-500/20">
+                    <Trash2 size={20} className="text-red-400" />
+                  </div>
+                )}
+                <div className="flex justify-between items-start mb-3 gap-2">
+                  <span className="bg-teal-950/30 text-teal-500/80 text-[10px] font-mono px-2 py-1 rounded-full border border-teal-900/30">
+                    Daily Review
+                  </span>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="text-neutral-500 text-xs font-mono">{note.date}</span>
+                    <button
+                      onClick={(e) => {
                         e.stopPropagation();
                         onDeleteNote(note.id);
-                      }
-                    }}
-                    className={`p-1.5 text-neutral-600 hover:text-red-400 transition-opacity ${
-                      isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                    }`}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                      }}
+                      onContextMenu={(e) => {
+                        if (isTouch) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onDeleteNote(note.id);
+                        }
+                      }}
+                      className={`p-1.5 text-neutral-600 hover:text-red-400 transition-opacity ${
+                        isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+                <h3 className="text-lg font-medium text-neutral-200 mb-2 line-clamp-2">{note.title}</h3>
+                <div className="flex gap-2">
+                  {note.tags.map(tag => (
+                    <span key={tag} className="text-xs text-neutral-500">#{tag}</span>
+                  ))}
                 </div>
               </div>
-              <h3 className="text-lg font-medium text-neutral-200 mb-2 line-clamp-2">{note.title}</h3>
-              <div className="flex gap-2">
-                {note.tags.map(tag => (
-                  <span key={tag} className="text-xs text-neutral-500">#{tag}</span>
-                ))}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </motion.div>
@@ -1863,72 +1932,83 @@ const VoiceCollection: React.FC<{
             <p>No saved voices yet.</p>
           </div>
         ) : (
-          voices.map(voice => (
-            <div
-              key={voice.id}
-              onClick={() => onPlayVoice(voice)}
-              className="bg-[#18181b] border border-white/5 rounded-2xl p-5 transition-all hover:bg-white/[0.02] active:scale-[0.98] cursor-pointer group relative"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <span className="bg-teal-950/30 text-teal-400/80 text-[10px] font-mono px-2 py-1 rounded-full border border-teal-900/30">
-                  {new Date(voice.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-neutral-500 text-xs font-mono">{voice.date}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteVoice(voice.id);
-                    }}
-                    onContextMenu={(e) => {
-                      if (isTouch) {
-                        e.preventDefault();
+          voices.map(voice => {
+            const { swipeOffset, handlers } = useSwipeToDelete(() => onDeleteVoice(voice.id));
+            return (
+              <div
+                key={voice.id}
+                onClick={() => onPlayVoice(voice)}
+                {...(isTouch ? handlers : {})}
+                style={isTouch ? { transform: `translateX(${swipeOffset}px)`, transition: swipeOffset === 0 ? 'transform 0.3s' : 'none' } : undefined}
+                className="bg-[#18181b] border border-white/5 rounded-2xl p-5 transition-all hover:bg-white/[0.02] active:scale-[0.98] cursor-pointer group relative"
+              >
+                {/* Delete hint background when swiping */}
+                {isTouch && swipeOffset < 0 && (
+                  <div className="absolute right-0 top-0 bottom-0 flex items-center justify-end pr-4 rounded-2xl bg-red-500/20">
+                    <Trash2 size={20} className="text-red-400" />
+                  </div>
+                )}
+                <div className="flex justify-between items-start mb-3">
+                  <span className="bg-teal-950/30 text-teal-400/80 text-[10px] font-mono px-2 py-1 rounded-full border border-teal-900/30">
+                    {new Date(voice.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-neutral-500 text-xs font-mono">{voice.date}</span>
+                    <button
+                      onClick={(e) => {
                         e.stopPropagation();
                         onDeleteVoice(voice.id);
-                      }
-                    }}
-                    className={`p-1 text-neutral-600 hover:text-red-400 transition-opacity ${
-                      isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                    }`}
-                    title="Delete"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                      }}
+                      onContextMenu={(e) => {
+                        if (isTouch) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onDeleteVoice(voice.id);
+                        }
+                      }}
+                      className={`p-1 text-neutral-600 hover:text-red-400 transition-opacity ${
+                        isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}
+                      title="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                <h3 className="text-lg font-medium text-neutral-200 mb-2 line-clamp-2">{voice.title}</h3>
+
+                <div className="flex items-center justify-between mt-4">
+                  <div className="flex items-center gap-2 text-neutral-400 group-hover:text-teal-400 transition-colors">
+                    <Play size={16} fill="currentColor" />
+                    <span className="text-xs font-medium">Play Session</span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const link = document.createElement('a');
+                        link.href = voice.audioUrl;
+                        link.download = `${voice.title || 'voice-recording'}.mp3`;
+                        link.target = '_blank';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
+                      className="text-neutral-500 hover:text-teal-400 transition-colors"
+                      title="Download"
+                    >
+                      <Download size={18} fill="currentColor" />
+                    </button>
+                    <span className="text-xs text-neutral-500 font-mono">
+                      {Math.floor(voice.duration / 60)}:{Math.floor(voice.duration % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
                 </div>
               </div>
-
-              <h3 className="text-lg font-medium text-neutral-200 mb-2 line-clamp-2">{voice.title}</h3>
-
-              <div className="flex items-center justify-between mt-4">
-                <div className="flex items-center gap-2 text-neutral-400 group-hover:text-teal-400 transition-colors">
-                  <Play size={16} fill="currentColor" />
-                  <span className="text-xs font-medium">Play Session</span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const link = document.createElement('a');
-                      link.href = voice.audioUrl;
-                      link.download = `${voice.title || 'voice-recording'}.mp3`;
-                      link.target = '_blank';
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    }}
-                    className="text-neutral-500 hover:text-teal-400 transition-colors"
-                    title="Download"
-                  >
-                    <Download size={18} fill="currentColor" />
-                  </button>
-                  <span className="text-xs text-neutral-500 font-mono">
-                    {Math.floor(voice.duration / 60)}:{Math.floor(voice.duration % 60).toString().padStart(2, '0')}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </motion.div>
