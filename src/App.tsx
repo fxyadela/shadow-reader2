@@ -274,6 +274,7 @@ const INITIAL_NOTES: Note[] = getStorageItem<Note[]>(STORAGE_KEYS.NOTES, []);
 const parseNoteContent = (raw: string) => {
   const sections = {
     title: "",
+    tags: [] as string[],
     chat: [] as any[],
     upgrades: [] as any[],
     patterns: [] as any[],
@@ -291,30 +292,50 @@ const parseNoteContent = (raw: string) => {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    if (trimmed.startsWith('## ✍️ 标题')) { currentSection = 'title'; continue; }
-    if (trimmed.startsWith('## 💬 对话内容')) { currentSection = 'chat'; continue; }
-    if (trimmed.startsWith('## 🔄 表达升级')) { currentSection = 'upgrades'; continue; }
-    if (trimmed.startsWith('## 🧩 实用句型')) { currentSection = 'patterns'; continue; }
-    if (trimmed.startsWith('## 🗣️ 跟读材料')) { currentSection = 'shadowing'; continue; }
-    if (trimmed.startsWith('## 🎭 情景重练')) { currentSection = 'scenario'; continue; }
+    // Support both ## format and emoji-only format
+    if (trimmed.startsWith('## ✍️ 标题') || trimmed === '✍️ 标题') { currentSection = 'title'; continue; }
+    if (trimmed.startsWith('## 💬 对话内容') || trimmed === '💬 对话内容') { currentSection = 'chat'; continue; }
+    if (trimmed.startsWith('## 🏷️ 标签') || trimmed === '🏷️ 标签') { currentSection = 'tags'; continue; }
+    if (trimmed.startsWith('## 🔄 表达升级') || trimmed === '🔄 表达升级') { currentSection = 'upgrades'; continue; }
+    if (trimmed.startsWith('## 🧩 实用句型') || trimmed === '🧩 实用句型') { currentSection = 'patterns'; continue; }
+    if (trimmed.startsWith('## 🗣️ 跟读材料') || trimmed === '🗣️ 跟读材料') { currentSection = 'shadowing'; continue; }
+    if (trimmed.startsWith('## 🎭 情景重练') || trimmed === '🎭 情景重练') { currentSection = 'scenario'; continue; }
 
     if (currentSection === 'title') {
       if (!sections.title) sections.title = trimmed;
+    } else if (currentSection === 'tags') {
+      // Parse tags like #宠物日常 #英语表达提升
+      const tagMatches = trimmed.match(/#[^\s#]+/g);
+      if (tagMatches) {
+        sections.tags.push(...tagMatches.map(t => t.replace('#', '')));
+      }
     } else if (currentSection === 'chat') {
+      // Support both markdown format (###) and emoji format (第一轮)
       if (trimmed.startsWith('###')) {
         currentRound = trimmed.replace('###', '').trim();
-      } else if (trimmed.startsWith('- **你**：')) {
-        sections.chat.push({ id: `chat-${i}`, role: 'user_original', text: trimmed.replace('- **你**：', '').trim(), round: currentRound });
-      } else if (trimmed.startsWith('- **纠正后**：')) {
+      } else if (trimmed.match(/^[一二三四五六七八九十]+轮/)) {
+        currentRound = trimmed;
+      } else if (trimmed.startsWith('- **你**：') || trimmed.startsWith('• 你：') || trimmed.startsWith('你：')) {
+        // Handle both formats
+        const text = trimmed.replace(/^(- \*\*你\*\*：|• 你：|你：)\s*/, '');
+        sections.chat.push({ id: `chat-${i}`, role: 'user_original', text: text, round: currentRound });
+      } else if (trimmed.startsWith('- **纠正后**：') || trimmed.startsWith('• 纠正后：')) {
         const lastMsg = sections.chat[sections.chat.length - 1];
         if (lastMsg && lastMsg.role === 'user_original') {
-          lastMsg.correction = trimmed.replace('- **纠正后**：', '').trim();
+          lastMsg.correction = trimmed.replace(/^(- \*\*纠正后\*\*：|• 纠正后：)\s*/, '');
         }
-      } else if (trimmed.startsWith('- **我**：')) {
-        sections.chat.push({ id: `chat-${i}`, role: 'ai', text: trimmed.replace('- **我**：', '').trim(), round: currentRound });
+      } else if (trimmed.startsWith('- **我**：') || trimmed.startsWith('• 我：') || trimmed.startsWith('我：')) {
+        const text = trimmed.replace(/^(- \*\*我\*\*：|• 我：|我：)\s*/, '');
+        sections.chat.push({ id: `chat-${i}`, role: 'ai', text: text, round: currentRound });
       }
     } else if (currentSection === 'upgrades') {
-      const match = trimmed.match(/^\d+\.\s*\*\*(.*?)\*\*\s*→\s*\*\*(.*?)\*\*[：:](.*)$/);
+      // Support both markdown format and emoji-only format
+      // Markdown: 1. **her his fur** → **her fur**：...
+      // Emoji: 1. her his fur → her fur：...
+      let match = trimmed.match(/^\d+\.\s*\*\*(.*?)\*\*\s*→\s*\*\*(.*?)\*\*[：:](.*)$/);
+      if (!match) {
+        match = trimmed.match(/^\d+\.\s*(.*?)\s*→\s*(.*?)[：:](.*)$/);
+      }
       if (match) {
         sections.upgrades.push({
           original: match[1].trim(),
@@ -1558,8 +1579,12 @@ const NotesList: React.FC<{
                     <span className="text-neutral-500 text-xs font-mono">{note.date}</span>
                     <button
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
-                        onDeleteNote(note.id);
+                        // Delay to prevent white screen on mobile
+                        setTimeout(() => {
+                          onDeleteNote(note.id);
+                        }, 50);
                       }}
                       className={`p-1.5 text-neutral-600 hover:text-red-400 transition-opacity ${
                         isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
@@ -1614,8 +1639,8 @@ const NotesDetail: React.FC<{
   };
 
   const handleSave = () => {
-    // Extract title from content: ## ✍️ 标题 (next line)
-    const titleMatch = rawText.match(/## ✍️ 标题\s*\n(.+)/);
+    // Extract title from content: ## ✍️ 标题 or ✍️ 标题 (next line)
+    const titleMatch = rawText.match(/(?:## )?✍️ 标题\s*\n(.+)/);
     let extractedTitle = note.title;
 
     if (titleMatch) {
@@ -1628,11 +1653,21 @@ const NotesDetail: React.FC<{
       }
     }
 
-    // Extract tags from #tag format
+    // Extract tags from #tag format OR 🏷️ 标签 section
+    let newTags = [...note.tags];
     const tagsMatch = rawText.match(/(?:^|\s)(#[^\s#.,!?;:]+)/g);
-    const newTags = tagsMatch
-      ? [...new Set(tagsMatch.map(t => t.trim().replace(/^#/, '')))]
-      : note.tags;
+    if (tagsMatch) {
+      newTags = [...new Set(tagsMatch.map(t => t.trim().replace(/^#/, '')))];
+    }
+    // Also check for 🏷️ 标签 section
+    const tagSectionMatch = rawText.match(/🏷️ 标签\s*\n([\s\S]*?)(?=\n[^#\n]|$)/);
+    if (tagSectionMatch) {
+      const tagLine = tagSectionMatch[1].trim();
+      const sectionTags = tagLine.match(/#[^\s#.,!?;:]+/g);
+      if (sectionTags) {
+        newTags = [...new Set([...newTags, ...sectionTags.map(t => t.replace(/^#/, ''))])];
+      }
+    }
 
     onSave({
       ...note,
@@ -2037,14 +2072,20 @@ const VoiceCollection: React.FC<{
                     <span className="text-neutral-500 text-xs font-mono">{voice.date}</span>
                     <button
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
-                        onDeleteVoice(voice.id);
+                        // Delay to prevent white screen on mobile
+                        setTimeout(() => {
+                          onDeleteVoice(voice.id);
+                        }, 50);
                       }}
                       onContextMenu={(e) => {
                         if (isTouch) {
                           e.preventDefault();
                           e.stopPropagation();
-                          onDeleteVoice(voice.id);
+                          setTimeout(() => {
+                            onDeleteVoice(voice.id);
+                          }, 50);
                         }
                       }}
                       className={`p-1 text-neutral-600 hover:text-red-400 transition-opacity ${
