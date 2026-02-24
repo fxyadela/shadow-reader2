@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { toPng } from 'html-to-image';
 import {
   ArrowLeft,
   MessageSquare,
@@ -41,7 +42,8 @@ import {
   SkipForward,
   Download,
   Gauge,
-  Menu
+  Menu,
+  Share
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -681,12 +683,38 @@ const ShadowReader: React.FC<{
     };
   }, []);
 
-  // Auto-scroll to active segment
+  // Apply speed to audio when it changes
   useEffect(() => {
-    if (mode === 'shadowing' && itemRefs.current[currentSegmentIndex]) {
-      itemRefs.current[currentSegmentIndex]?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
+    if (audioState) {
+      audioState.playbackRate = speed;
+    }
+  }, [speed, audioState]);
+
+  // Auto-scroll to center the active segment (lyric-style)
+  useEffect(() => {
+    if (mode === 'shadowing' && itemRefs.current[currentSegmentIndex] && containerRef.current) {
+      // Use requestAnimationFrame to ensure DOM is fully rendered
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!containerRef.current || !itemRefs.current[currentSegmentIndex]) return;
+          const container = containerRef.current;
+          const element = itemRefs.current[currentSegmentIndex];
+
+          // Get container dimensions
+          const containerHeight = container.clientHeight;
+          const elementHeight = element.clientHeight;
+          const elementTop = element.offsetTop;
+
+          // Calculate target scroll position to center the element
+          const targetScrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+          // Use 'auto' for first scroll to immediately center, 'smooth' for subsequent
+          const isFirstScroll = currentSegmentIndex === 0 && container.scrollTop < 10;
+          container.scrollTo({
+            top: targetScrollTop,
+            behavior: isFirstScroll ? 'auto' : 'smooth'
+          });
+        });
       });
     }
   }, [currentSegmentIndex, mode]);
@@ -1087,8 +1115,8 @@ const ShadowReader: React.FC<{
 
 
   return (
-    <motion.div 
-      className="min-h-screen bg-neutral-950 text-neutral-200 font-sans selection:bg-teal-500/30 pb-32"
+    <motion.div
+      className="text-neutral-200 font-sans selection:bg-teal-500/30"
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
@@ -1128,32 +1156,22 @@ const ShadowReader: React.FC<{
       )}
 
       {/* Header */}
-      <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-neutral-950/80 backdrop-blur-md border-b border-white/5">
-        <div className="flex items-center gap-4">
-          {/* Back button logic */}
-          {mode === 'settings' ? (
-             <button onClick={() => setMode('edit')} className="p-2 -ml-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors">
-               <ArrowLeft size={20} />
-             </button>
-          ) : !isStandalone && onBack ? (
-            <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors">
-              <ArrowLeft size={20} />
-            </button>
-          ) : null}
-          
-          <h1 className="text-lg font-semibold text-white tracking-tight">Shadow Reader</h1>
+      <header className="mb-6 mt-4 px-2 flex justify-between items-end">
+        <div>
+          <h1 className="text-2xl font-bold text-white mb-1">Shadow Reader</h1>
+          <p className="text-neutral-500 text-sm">Practice speaking every day</p>
         </div>
-        
+
         {mode === 'shadowing' && (
           <div className="flex items-center gap-2">
             {!playbackMode && (
-              <button 
-                onClick={handleSaveAll} 
+              <button
+                onClick={handleSaveAll}
                 className={`p-2 rounded-full transition-all duration-500 ${
-                  saveStatus === 'success' 
-                    ? 'bg-teal-500 text-white scale-110 shadow-[0_0_15px_rgba(20,184,166,0.5)]' 
+                  saveStatus === 'success'
+                    ? 'bg-teal-500 text-white scale-110 shadow-[0_0_15px_rgba(20,184,166,0.5)]'
                     : 'hover:bg-white/10 text-teal-400 hover:text-teal-300'
-                }`} 
+                }`}
                 title="Save All"
               >
                 {saveStatus === 'success' ? (
@@ -1163,38 +1181,38 @@ const ShadowReader: React.FC<{
                 ) : (
                   <Save size={20} />
                 )}
-              </button>
-            )}
-            {!playbackMode && (
-              <button onClick={handleBackToEdit} className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors">
-                <Edit3 size={20} />
-              </button>
-            )}
-          </div>
-        )}
+                </button>
+              )}
+              {!playbackMode && (
+                <button onClick={handleBackToEdit} className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors">
+                  <Edit3 size={20} />
+                </button>
+              )}
+            </div>
+          )}
       </header>
 
       <main className="px-6 pt-6">
         <AnimatePresence mode="wait">
           {mode === 'edit' && (
-            <motion.div 
+            <motion.div
               key="edit"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="space-y-6"
+              className="max-w-xl mx-auto space-y-8"
             >
               <div className="relative">
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  className="w-full h-64 bg-neutral-900/50 text-neutral-200 p-6 pr-12 rounded-3xl border border-white/5 focus:border-teal-500/50 outline-none resize-none text-lg leading-relaxed"
-                  placeholder="Paste text..."
+                  className="w-full h-80 bg-neutral-900/50 text-neutral-200 p-6 pr-12 rounded-3xl border border-white/10 focus:border-teal-500/50 outline-none resize-none text-lg leading-relaxed placeholder:text-neutral-600"
+                  placeholder="Paste your learning material here..."
                 />
                 {text && (
                   <button
                     onClick={() => setText('')}
-                    className="absolute top-4 right-4 p-1 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-white transition-colors"
+                    className="absolute top-4 right-4 p-1.5 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-white transition-colors"
                   >
                     <X size={18} />
                   </button>
@@ -1203,7 +1221,7 @@ const ShadowReader: React.FC<{
               <button
                 onClick={handleToSettings}
                 disabled={!text.trim()}
-                className="w-full rounded-2xl bg-teal-600 p-4 font-semibold text-white hover:bg-teal-500 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full rounded-full bg-teal-500 py-4 px-8 font-semibold text-black hover:bg-teal-400 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-teal-500/20"
               >
                 Next <ArrowRight size={20} />
               </button>
@@ -1211,18 +1229,13 @@ const ShadowReader: React.FC<{
           )}
 
           {mode === 'settings' && (
-            <motion.div 
+            <motion.div
               key="settings"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-8 pb-32"
+              className="max-w-xl mx-auto space-y-8 pb-32"
             >
-              {/* Preview */}
-              <div className="bg-neutral-900/50 p-4 rounded-2xl border border-white/5">
-                <p className="text-neutral-400 text-sm line-clamp-3 italic">"{text}"</p>
-              </div>
-
               {/* Controls */}
               <div className="space-y-6">
                 
@@ -1235,7 +1248,7 @@ const ShadowReader: React.FC<{
                       <select 
                         value={model}
                         onChange={(e) => setModel(e.target.value)}
-                        className="w-full appearance-none bg-neutral-800/50 text-white p-3 pr-10 rounded-xl border border-white/5 focus:border-teal-500/30 outline-none"
+                        className="w-full appearance-none bg-neutral-800/50 text-white p-3 pr-10 rounded-xl border border-white/10 focus:border-teal-500/30 outline-none"
                       >
                         {MODELS.map(m => <option key={m} value={m}>{m}</option>)}
                       </select>
@@ -1262,14 +1275,14 @@ const ShadowReader: React.FC<{
                           placeholder="Voice Name (e.g. My Custom Voice)"
                           value={newVoiceName}
                           onChange={(e) => setNewVoiceName(e.target.value)}
-                          className="w-full bg-neutral-900 text-white text-sm p-2 rounded-lg border border-white/5 focus:border-teal-500/30 outline-none"
+                          className="w-full bg-neutral-900 text-white text-sm p-2 rounded-lg border border-white/10 focus:border-teal-500/30 outline-none"
                         />
                         <input
                           type="text"
                           placeholder="Voice ID (moss_audio_...)"
                           value={newVoiceId}
                           onChange={(e) => setNewVoiceId(e.target.value)}
-                          className="w-full bg-neutral-900 text-white text-sm p-2 rounded-lg border border-white/5 focus:border-teal-500/30 outline-none font-mono"
+                          className="w-full bg-neutral-900 text-white text-sm p-2 rounded-lg border border-white/10 focus:border-teal-500/30 outline-none font-mono"
                         />
                         <div className="flex gap-2">
                           <button 
@@ -1292,7 +1305,7 @@ const ShadowReader: React.FC<{
                         <select 
                           value={selectedVoice}
                           onChange={(e) => setSelectedVoice(e.target.value)}
-                          className="w-full appearance-none bg-neutral-800/50 text-white p-3 pr-10 rounded-xl border border-white/5 focus:border-teal-500/30 outline-none"
+                          className="w-full appearance-none bg-neutral-800/50 text-white p-3 pr-10 rounded-xl border border-white/10 focus:border-teal-500/30 outline-none"
                         >
                           {voices.map(v => (
                             <option key={v.id} value={v.id}>{v.name} • {v.accent}</option>
@@ -1331,7 +1344,7 @@ const ShadowReader: React.FC<{
                 </div>
 
                 {/* --- Advanced Settings (Collapsible) --- */}
-                <div className="border border-white/5 rounded-2xl overflow-hidden bg-neutral-900/30">
+                <div className="border border-white/10 rounded-2xl overflow-hidden bg-neutral-900/30">
                   <button 
                     onClick={() => setShowAdvanced(!showAdvanced)}
                     className="w-full flex items-center justify-between p-4 text-left hover:bg-white/5 transition-colors"
@@ -1351,7 +1364,7 @@ const ShadowReader: React.FC<{
                         exit={{ height: 0, opacity: 0 }}
                         className="overflow-hidden"
                       >
-                        <div className="p-4 pt-0 space-y-6 border-t border-white/5">
+                        <div className="p-4 pt-0 space-y-6 border-t border-white/10">
                           
                           {/* Voice Setting: Pitch & Emotion */}
                           <div className="grid grid-cols-1 gap-4 pt-4">
@@ -1373,7 +1386,7 @@ const ShadowReader: React.FC<{
                                 <select 
                                   value={emotion}
                                   onChange={(e) => setEmotion(e.target.value)}
-                                  className="w-full appearance-none bg-neutral-800/50 text-neutral-300 text-sm p-2.5 pr-8 rounded-lg border border-white/5 outline-none"
+                                  className="w-full appearance-none bg-neutral-800/50 text-neutral-300 text-sm p-2.5 pr-8 rounded-lg border border-white/10 outline-none"
                                 >
                                   {EMOTIONS.map(e => <option key={e} value={e}>{e}</option>)}
                                 </select>
@@ -1430,7 +1443,7 @@ const ShadowReader: React.FC<{
                                 <select 
                                   value={soundEffect}
                                   onChange={(e) => setSoundEffect(e.target.value)}
-                                  className="w-full appearance-none bg-neutral-800/50 text-neutral-300 text-sm p-2.5 pr-8 rounded-lg border border-white/5 outline-none"
+                                  className="w-full appearance-none bg-neutral-800/50 text-neutral-300 text-sm p-2.5 pr-8 rounded-lg border border-white/10 outline-none"
                                 >
                                   {SOUND_EFFECTS.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                 </select>
@@ -1453,7 +1466,7 @@ const ShadowReader: React.FC<{
                   disabled={isLoading}
                   className="w-full group relative overflow-hidden rounded-2xl bg-teal-600 p-4 transition-all hover:bg-teal-500 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  <div className="relative z-10 flex items-center justify-center gap-2 text-lg font-semibold text-white">
+                  <div className="relative z-10 flex items-center justify-center gap-2 text-lg font-semibold text-black">
                     {isLoading ? (
                       <Loader2 size={20} className="animate-spin" />
                     ) : (
@@ -1467,13 +1480,14 @@ const ShadowReader: React.FC<{
           )}
 
           {mode === 'shadowing' && (
-            <motion.div 
+            <motion.div
               key="shadowing"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="h-[calc(100vh-200px)] overflow-y-auto no-scrollbar pb-48 px-2 [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)]"
+              className="h-[calc(100vh-200px)] overflow-y-auto no-scrollbar pb-48 px-2 [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)] scroll-smooth"
               ref={containerRef}
+              style={{ scrollBehavior: 'smooth' }}
             >
               {segments.length > 0 ? (
                 <div className="space-y-8 py-[40vh]">
@@ -1537,73 +1551,79 @@ const ShadowReader: React.FC<{
                 />
               </div>
               
-              <div className="flex items-center justify-center px-2 pb-4 max-w-2xl mx-auto w-full gap-1">
-                {/* Replay */}
+              <div className="flex items-center justify-between px-2 pb-4 max-w-2xl mx-auto w-full">
+                {/* Left: Loop (auxiliary) */}
                 <button
                   onClick={handleReplay}
-                  className="p-3 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors flex-shrink-0"
+                  className="p-3 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
                   title="Replay"
                 >
                   <RotateCcw size={22} />
                 </button>
 
-                {/* Prev */}
-                <button
-                  onClick={handlePrevSegment}
-                  className="p-3 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors flex-shrink-0"
-                  title="Previous"
-                >
-                  <SkipBack size={28} fill="currentColor" />
-                </button>
-
-                {/* Play/Pause - Circular and fixed size */}
-                <button
-                  onClick={togglePlay}
-                  className="w-16 h-16 bg-white text-black rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform active:scale-95 flex-shrink-0"
-                >
-                  {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
-                </button>
-
-                {/* Next */}
-                <button
-                  onClick={handleNextSegment}
-                  className="p-3 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors flex-shrink-0"
-                  title="Next"
-                >
-                  <SkipForward size={28} fill="currentColor" />
-                </button>
-
-                {/* Translate */}
-                <div className="relative group flex-shrink-0">
+                {/* Center: Core controls - grouped tightly */}
+                <div className="flex items-center gap-2">
+                  {/* Prev */}
                   <button
-                    onClick={() => setShowLangPopup(!showLangPopup)}
-                    className={`p-3 rounded-full transition-colors ${showTranslation ? 'text-teal-400 bg-teal-900/30' : 'text-neutral-400 hover:text-white'}`}
-                    title="Translate"
+                    onClick={handlePrevSegment}
+                    className="p-3 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                    title="Previous"
                   >
-                    {isTranslating ? <Loader2 size={22} className="animate-spin" /> : <Languages size={22} />}
+                    <SkipBack size={24} />
                   </button>
 
-                  {/* Language Selector Popup - toggle on click for touch devices, hover on desktop */}
-                  <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-bottom-right transition-opacity ${isTouch ? (showLangPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
-                     <button onClick={() => { if (translationLang === 'zh' && showTranslation) { setShowTranslation(false); } else { handleTranslate('zh'); } setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'zh' ? 'bg-teal-600/30' : ''}`}>🇨🇳</button>
-                     <button onClick={() => { if (translationLang === 'ja' && showTranslation) { setShowTranslation(false); } else { handleTranslate('ja'); } setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ja' ? 'bg-teal-600/30' : ''}`}>🇯🇵</button>
-                     <button onClick={() => { if (translationLang === 'ko' && showTranslation) { setShowTranslation(false); } else { handleTranslate('ko'); } setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ko' ? 'bg-teal-600/30' : ''}`}>🇰🇷</button>
-                  </div>
+                  {/* Play/Pause - Teal color to match brand */}
+                  <button
+                    onClick={togglePlay}
+                    className="w-14 h-14 bg-teal-500 text-black rounded-full flex items-center justify-center shadow-lg hover:bg-teal-400 hover:scale-105 transition-all active:scale-95"
+                  >
+                    {isPlaying ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" className="ml-0.5" />}
+                  </button>
+
+                  {/* Next */}
+                  <button
+                    onClick={handleNextSegment}
+                    className="p-3 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                    title="Next"
+                  >
+                    <SkipForward size={24} />
+                  </button>
                 </div>
 
-                {/* Speed */}
-                <button
-                  onClick={() => {
-                    const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
-                    const currentIndex = speeds.indexOf(speed);
-                    const nextIndex = (currentIndex + 1) % speeds.length;
-                    setSpeed(speeds[nextIndex]);
-                  }}
-                  className="w-12 p-3 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors text-xs font-medium flex-shrink-0"
-                  title="Playback speed"
-                >
-                  {speed}x
-                </button>
+                {/* Right: Translate + Speed (auxiliary group) */}
+                <div className="flex items-center gap-1">
+                  {/* Translate */}
+                  <div className="relative group">
+                    <button
+                      onClick={() => setShowLangPopup(!showLangPopup)}
+                      className={`p-3 rounded-full transition-colors ${showTranslation ? 'text-teal-400 bg-teal-900/30' : 'text-neutral-400 hover:text-white'}`}
+                      title="Translate"
+                    >
+                      {isTranslating ? <Loader2 size={22} className="animate-spin" /> : <Languages size={22} />}
+                    </button>
+
+                    {/* Language Selector Popup - toggle on click for touch devices, hover on desktop */}
+                    <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-bottom-right transition-opacity ${isTouch ? (showLangPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
+                       <button onClick={() => { if (translationLang === 'zh' && showTranslation) { setShowTranslation(false); } else { handleTranslate('zh'); } setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'zh' ? 'bg-teal-600/30' : ''}`}>🇨🇳</button>
+                       <button onClick={() => { if (translationLang === 'ja' && showTranslation) { setShowTranslation(false); } else { handleTranslate('ja'); } setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ja' ? 'bg-teal-600/30' : ''}`}>🇯🇵</button>
+                       <button onClick={() => { if (translationLang === 'ko' && showTranslation) { setShowTranslation(false); } else { handleTranslate('ko'); } setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ko' ? 'bg-teal-600/30' : ''}`}>🇰🇷</button>
+                    </div>
+                  </div>
+
+                  {/* Speed */}
+                  <button
+                    onClick={() => {
+                      const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+                      const currentIndex = speeds.indexOf(speed);
+                      const nextIndex = (currentIndex + 1) % speeds.length;
+                      setSpeed(speeds[nextIndex]);
+                    }}
+                    className="px-3 py-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors text-sm font-medium"
+                    title="Playback speed"
+                  >
+                    {speed}x
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1625,7 +1645,7 @@ const NotesList: React.FC<{
   onSetFilterTag: (tag: string | null) => void,
   isTouch?: boolean
 }> = ({ notes, onSelectNote, onAddNote, onDeleteNote, filterTag, onSetFilterTag, isTouch = false }) => {
-  
+
   // Extract all unique tags
   const allTags = useMemo(() => {
     const tags = new Set<string>();
@@ -1691,20 +1711,20 @@ const NotesList: React.FC<{
               <div
                 key={note.id}
                 onClick={() => onSelectNote(note)}
-                className="bg-[#18181b] border border-white/5 rounded-2xl p-5 active:scale-[0.98] transition-transform group cursor-pointer hover:bg-white/[0.02]"
+                className="bg-[#18181b] border border-white/10 rounded-2xl p-5 active:scale-[0.98] transition-transform group cursor-pointer hover:bg-white/[0.02]"
               >
                 <div className="flex justify-between items-start mb-3 gap-2">
                   <span className="bg-teal-950/30 text-teal-500/80 text-[10px] font-mono px-2 py-1 rounded-full border border-teal-900/30">
                     Daily Review
                   </span>
-                  <div className="flex items-center gap-2 ml-auto">
+                  <div className="flex items-center gap-1 ml-auto">
                     <span className="text-neutral-500 text-xs font-mono">{note.date}</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onDeleteNote(note.id);
                       }}
-                      className="p-1.5 text-neutral-600 hover:text-red-400 transition-opacity opacity-100"
+                      className="p-1.5 text-neutral-600 hover:text-red-400 transition-opacity"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -1742,6 +1762,27 @@ const NotesDetail: React.FC<{
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(note.rawContent === "");
   const [rawText, setRawText] = useState(note.rawContent);
+  const detailContentRef = useRef<HTMLDivElement>(null);
+
+  // Export note detail as image
+  const handleShareNote = async () => {
+    if (!detailContentRef.current) return;
+
+    try {
+      const dataUrl = await toPng(detailContentRef.current, {
+        backgroundColor: '#09090b',
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+
+      const link = document.createElement('a');
+      link.download = `note-${note.date.replace(/\//g, '-')}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
+  };
 
   // Parse content for view mode
   const parsedContent = useMemo(() => parseNoteContent(rawText), [rawText]);
@@ -1926,7 +1967,7 @@ const NotesDetail: React.FC<{
       }}
     >
       {/* 1. Header */}
-      <header className="sticky top-0 z-20 bg-[#09090b]/80 backdrop-blur-md border-b border-white/5 px-4 py-3 flex items-center gap-4">
+      <header className="sticky top-0 z-20 bg-[#09090b]/80 backdrop-blur-md border-b border-white/10 px-4 py-3 flex items-center gap-4">
         <button
           onClick={handleBack}
           className="p-2 -ml-2 rounded-full text-neutral-400 hover:bg-white/5 hover:text-white transition-colors"
@@ -1952,9 +1993,17 @@ const NotesDetail: React.FC<{
         >
           {isEditing ? <Save size={18} /> : <Edit3 size={18} />}
         </button>
+        <button
+          onClick={handleShareNote}
+          className="p-2 rounded-full text-neutral-400 hover:bg-white/5 hover:text-teal-400 transition-colors"
+          title="Export as image"
+        >
+          <Share size={18} />
+        </button>
       </header>
 
-      {isEditing ? (
+      <div ref={detailContentRef} className="bg-[#09090b]">
+        {isEditing ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -2010,7 +2059,7 @@ const NotesDetail: React.FC<{
                     <React.Fragment key={msg.id}>
                       {showRound && msg.round && (
                         <div className="text-center my-4">
-                          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-600 bg-neutral-900 px-3 py-1 rounded-full border border-white/5">
+                          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-600 bg-neutral-900 px-3 py-1 rounded-full border border-white/10">
                             {msg.round}
                           </span>
                         </div>
@@ -2018,11 +2067,11 @@ const NotesDetail: React.FC<{
                       <div className={`flex flex-col ${msg.role === 'ai' ? 'items-start' : 'items-end'}`}>
                         <div className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed relative group ${
                           msg.role === 'ai' 
-                            ? 'bg-[#18181b] text-neutral-300 rounded-tl-none border border-white/5' 
-                            : 'bg-[#18181b] text-neutral-300 rounded-tr-none border border-white/5'
+                            ? 'bg-[#18181b] text-neutral-300 rounded-tl-none border border-white/10' 
+                            : 'bg-[#18181b] text-neutral-300 rounded-tr-none border border-white/10'
                         }`}>
                           {msg.role === 'user_original' && (
-                            <div className="mb-3 pb-3 border-b border-white/5 opacity-60">
+                            <div className="mb-3 pb-3 border-b border-white/10 opacity-60">
                               <p className="font-mono text-xs text-neutral-500 mb-1 uppercase tracking-wider">Original</p>
                               <p className="line-through decoration-neutral-600 decoration-1">{msg.text}</p>
                             </div>
@@ -2109,7 +2158,7 @@ const NotesDetail: React.FC<{
 
               <div className="grid gap-3">
                 {parsedContent.upgrades.map((item: any, idx: number) => (
-                <div key={idx} className="bg-[#18181b] border border-white/5 rounded-xl p-4 relative overflow-visible group">
+                <div key={idx} className="bg-[#18181b] border border-white/10 rounded-xl p-4 relative overflow-visible group">
                   <div className="absolute top-0 left-0 w-1 h-full bg-neutral-800 group-hover:bg-teal-900/50 transition-colors" />
                   <div className="space-y-3 pl-2">
                     <div className="flex items-start gap-3 opacity-60">
@@ -2167,7 +2216,7 @@ const NotesDetail: React.FC<{
 
               <div className="space-y-2">
                 {parsedContent.patterns.map((item: any) => (
-                <div key={item.id} className="bg-[#18181b] border border-white/5 rounded-xl overflow-visible relative">
+                <div key={item.id} className="bg-[#18181b] border border-white/10 rounded-xl overflow-visible relative">
                   <button 
                     onClick={() => toggleAccordion(item.id)}
                     className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors"
@@ -2183,7 +2232,7 @@ const NotesDetail: React.FC<{
                         exit={{ height: 0, opacity: 0 }}
                         className="overflow-hidden bg-black/20"
                       >
-                        <div className="p-4 pt-0 border-t border-white/5 space-y-3">
+                        <div className="p-4 pt-0 border-t border-white/10 space-y-3">
                           <div className="pt-3">
                             <p className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Framework</p>
                             <p className="text-xs text-neutral-400">{item.framework}</p>
@@ -2244,7 +2293,7 @@ const NotesDetail: React.FC<{
 
               <div className="space-y-4">
                 {parsedContent.shadowing.map((item: any, idx: number) => (
-                  <div key={idx} className="bg-gradient-to-b from-[#18181b] to-[#131315] border border-white/5 rounded-2xl p-5 relative overflow-visible">
+                  <div key={idx} className="bg-gradient-to-b from-[#18181b] to-[#131315] border border-white/10 rounded-2xl p-5 relative overflow-visible">
                     {/* Decorative background noise/texture could go here */}
                     <div className="absolute top-0 right-0 p-3 opacity-10">
                       <Quote size={40} />
@@ -2253,7 +2302,7 @@ const NotesDetail: React.FC<{
                     <div className="relative z-10 space-y-6">
                       <HighlightedText text={item.text} stress={item.stress} linking={item.linking} />
 
-                      <div className="flex gap-4 text-[10px] text-neutral-500 font-mono uppercase pt-2 border-t border-white/5">
+                      <div className="flex gap-4 text-[10px] text-neutral-500 font-mono uppercase pt-2 border-t border-white/10">
                         <div className="flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-teal-500/50"></span> Linking
                         </div>
@@ -2280,7 +2329,7 @@ const NotesDetail: React.FC<{
                         />
                         <button
                           onClick={() => onNavigateToShadow(item.text)}
-                          className="flex-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-white/5 rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all active:scale-[0.98] group"
+                          className="flex-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-white/10 rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all active:scale-[0.98] group"
                         >
                           <Headphones size={18} className="text-teal-500/80 group-hover:scale-110 transition-transform" />
                           <span className="text-sm font-medium">Send to Shadow Reader</span>
@@ -2299,7 +2348,7 @@ const NotesDetail: React.FC<{
             <section className="pt-4">
               <div className="bg-gradient-to-r from-neutral-900 via-[#1a1a1a] to-neutral-900 border border-white/10 rounded-2xl p-1">
                 <div className="bg-[#09090b] rounded-xl p-5 space-y-4">
-                  <div className="flex items-center gap-4 border-b border-white/5 pb-4">
+                  <div className="flex items-center gap-4 border-b border-white/10 pb-4">
                     <div className="w-10 h-10 rounded-full bg-teal-900/20 flex items-center justify-center text-teal-500 border border-teal-500/20">
                       <Target size={20} />
                     </div>
@@ -2316,7 +2365,7 @@ const NotesDetail: React.FC<{
                         <div className={`max-w-[85%] rounded-2xl p-3 text-sm leading-relaxed ${
                           s.type === 'user'
                             ? 'bg-teal-900/20 text-teal-100 rounded-tr-none border border-teal-500/20'
-                            : 'bg-[#18181b] text-neutral-300 rounded-tl-none border border-white/5'
+                            : 'bg-[#18181b] text-neutral-300 rounded-tl-none border border-white/10'
                         }`}>
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <p className="text-[10px] opacity-50 uppercase tracking-wider">{s.name || (s.type === 'user' ? 'You' : 'Friend/AI')}</p>
@@ -2503,6 +2552,7 @@ const NotesDetail: React.FC<{
           </div>
         </motion.div>
       )}
+      </div>
     </motion.div>
   );
 };
@@ -2702,7 +2752,7 @@ const VoiceCollection: React.FC<{
               <div
                 key={voice.id}
                 onClick={() => onPlayVoice(voice)}
-                className="bg-[#18181b] border border-white/5 rounded-2xl p-5 transition-all hover:bg-white/[0.02] active:scale-[0.98] cursor-pointer group"
+                className="bg-[#18181b] border border-white/10 rounded-2xl p-5 transition-all hover:bg-white/[0.02] active:scale-[0.98] cursor-pointer group"
               >
                 <div className="flex justify-between items-start mb-3">
                   <span className="bg-teal-950/30 text-teal-400/80 text-[10px] font-mono px-2 py-1 rounded-full border border-teal-900/30">
@@ -2828,25 +2878,28 @@ const VoiceCollection: React.FC<{
 
 const BottomNav: React.FC<{ activeTab: MainTab, onTabChange: (tab: MainTab) => void }> = ({ activeTab, onTabChange }) => {
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-[#09090b] border-t border-white/5 px-6 py-4 z-50 flex justify-between items-center pb-8">
-      <button 
+    <div className="fixed bottom-0 left-0 right-0 bg-[#09090b] border-t border-white/10 px-6 py-4 z-50 flex justify-between items-center pb-8">
+      <button
         onClick={() => onTabChange('notes')}
+        onDoubleClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'notes' ? 'text-teal-400' : 'text-neutral-500 hover:text-neutral-300'}`}
       >
         <Home size={22} strokeWidth={activeTab === 'notes' ? 2.5 : 2} />
         <span className="text-[10px] font-medium">Notes</span>
       </button>
-      
-      <button 
+
+      <button
         onClick={() => onTabChange('shadow')}
+        onDoubleClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'shadow' ? 'text-teal-400' : 'text-neutral-500 hover:text-neutral-300'}`}
       >
         <Mic size={22} strokeWidth={activeTab === 'shadow' ? 2.5 : 2} />
         <span className="text-[10px] font-medium">Shadow</span>
       </button>
 
-      <button 
+      <button
         onClick={() => onTabChange('voice')}
+        onDoubleClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'voice' ? 'text-teal-400' : 'text-neutral-500 hover:text-neutral-300'}`}
       >
         <Library size={22} strokeWidth={activeTab === 'voice' ? 2.5 : 2} />
