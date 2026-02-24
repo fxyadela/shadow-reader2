@@ -293,23 +293,33 @@ const parseNoteContent = (raw: string) => {
     if (!trimmed) continue;
 
     // Support both ## format and emoji-only format (more flexible matching)
-    // Use includes() for more robust matching - handle different emoji encodings
+    // Use exact emoji matching with includes() - more robust
     if (trimmed.includes('✍️') && trimmed.includes('标题')) { currentSection = 'title'; continue; }
-    if (trimmed.includes('🏷️') && trimmed.includes('标签')) { currentSection = 'tags'; continue; }
-    if (trimmed.includes('💬') && trimmed.includes('对话')) { currentSection = 'chat'; continue; }
-    if (trimmed.includes('🔄') && trimmed.includes('升级')) { currentSection = 'upgrades'; continue; }
-    if (trimmed.includes('🧩') && trimmed.includes('句型')) { currentSection = 'patterns'; continue; }
-    if (trimmed.includes('🗣️') && trimmed.includes('跟读')) { currentSection = 'shadowing'; continue; }
-    if (trimmed.includes('🎭') && trimmed.includes('情景')) { currentSection = 'scenario'; continue; }
+    else if (trimmed.includes('🏷️') && trimmed.includes('标签')) { currentSection = 'tags'; continue; }
+    else if (trimmed.includes('💬') && trimmed.includes('对话')) { currentSection = 'chat'; continue; }
+    else if (trimmed.includes('🔄') && trimmed.includes('升级')) { currentSection = 'upgrades'; continue; }
+    else if (trimmed.includes('🧩') && trimmed.includes('句型')) { currentSection = 'patterns'; continue; }
+    else if (trimmed.includes('🗣️') && trimmed.includes('跟读')) { currentSection = 'shadowing'; continue; }
+    else if (trimmed.includes('🎭') && trimmed.includes('情景')) { currentSection = 'scenario'; continue; }
+
+    // Also check for standalone section titles (emoji-only format without title keyword)
+    // e.g., just "✍️" at start or "💬" at start
+    else if (trimmed.startsWith('✍️')) { currentSection = 'title'; continue; }
+    else if (trimmed.startsWith('🏷️')) { currentSection = 'tags'; continue; }
+    else if (trimmed.startsWith('💬')) { currentSection = 'chat'; continue; }
+    else if (trimmed.startsWith('🔄')) { currentSection = 'upgrades'; continue; }
+    else if (trimmed.startsWith('🧩')) { currentSection = 'patterns'; continue; }
+    else if (trimmed.startsWith('🗣️')) { currentSection = 'shadowing'; continue; }
+    else if (trimmed.startsWith('🎭')) { currentSection = 'scenario'; continue; }
 
     // Fallback: check for markdown format without emoji
-    if (trimmed.startsWith('##') && trimmed.includes('标题')) { currentSection = 'title'; continue; }
-    if (trimmed.startsWith('##') && trimmed.includes('标签')) { currentSection = 'tags'; continue; }
-    if (trimmed.startsWith('##') && trimmed.includes('对话')) { currentSection = 'chat'; continue; }
-    if (trimmed.startsWith('##') && trimmed.includes('升级')) { currentSection = 'upgrades'; continue; }
-    if (trimmed.startsWith('##') && trimmed.includes('句型')) { currentSection = 'patterns'; continue; }
-    if (trimmed.startsWith('##') && trimmed.includes('跟读')) { currentSection = 'shadowing'; continue; }
-    if (trimmed.startsWith('##') && trimmed.includes('情景')) { currentSection = 'scenario'; continue; }
+    else if (trimmed.startsWith('##') && trimmed.includes('标题')) { currentSection = 'title'; continue; }
+    else if (trimmed.startsWith('##') && trimmed.includes('标签')) { currentSection = 'tags'; continue; }
+    else if (trimmed.startsWith('##') && trimmed.includes('对话')) { currentSection = 'chat'; continue; }
+    else if (trimmed.startsWith('##') && trimmed.includes('升级')) { currentSection = 'upgrades'; continue; }
+    else if (trimmed.startsWith('##') && trimmed.includes('句型')) { currentSection = 'patterns'; continue; }
+    else if (trimmed.startsWith('##') && trimmed.includes('跟读')) { currentSection = 'shadowing'; continue; }
+    else if (trimmed.startsWith('##') && trimmed.includes('情景')) { currentSection = 'scenario'; continue; }
 
     if (currentSection === 'title') {
       if (!sections.title) sections.title = trimmed;
@@ -363,37 +373,56 @@ const parseNoteContent = (raw: string) => {
         });
       }
     } else if (currentSection === 'patterns') {
-      if (trimmed.match(/^\d+\.\s*\*\*(.*?)\*\*$/)) {
+      // Support both markdown format (- **xxx**) and emoji format (◦ xxx or just xxx)
+      if (trimmed.match(/^\d+\.\s*\*\*(.*?)\*\*$/) || trimmed.match(/^\d+\.\s*[◦•]\s*(.*)$/)) {
+        const patternText = trimmed.replace(/^\d+\.\s*\*\*(.*?)\*\*$/, '$1').replace(/^\d+\.\s*[◦•]\s*/, '').trim();
         currentPattern = {
           id: `p-${i}`,
-          pattern: trimmed.replace(/^\d+\.\s*\*\*(.*?)\*\*$/, '$1').trim(),
+          pattern: patternText,
           framework: '',
           examples: []
         };
         sections.patterns.push(currentPattern);
-      } else if (currentPattern && trimmed.startsWith('- **句型框架**：')) {
-        currentPattern.framework = trimmed.replace('- **句型框架**：', '').trim();
-      } else if (currentPattern && trimmed.startsWith('- **替换例句')) {
-        const exMatch = trimmed.match(/- \*\*替换例句\d+\*\*：(.*)$/);
+      } else if (currentPattern && (trimmed.startsWith('- **句型框架**：') || trimmed.startsWith('◦ 句型解释：') || trimmed.includes('句型解释'))) {
+        currentPattern.framework = trimmed.replace(/^[-◦]\s*\*\*句型(框架|解释)\*\*：[：:]?\s*/, '').trim();
+      } else if (currentPattern && (trimmed.startsWith('- **替换例句') || trimmed.startsWith('◦ 替换例句'))) {
+        // Support both markdown and emoji format for examples
+        const exMatch = trimmed.match(/[-◦]\s*\*\*替换例句\d+\*\*[：:]\s*(.*)$/);
         if (exMatch) {
           currentPattern.examples.push(exMatch[1].trim());
         }
       }
     } else if (currentSection === 'shadowing') {
-      const match = trimmed.match(/^\d+\.\s*\*\*“(.*?)”\*\*$/);
+      // Support both markdown format (**"xxx"**) and emoji format ("xxx")
+      let match = trimmed.match(/^\d+\.\s*\*\*"(.*?)"\*\*$/);
+      if (!match) {
+        match = trimmed.match(/^\d+\.\s*[""](.*?)[""]$/);
+      }
       if (match) {
         sections.shadowing.push({ text: match[1].trim(), stress: '', linking: '' });
       } else if (sections.shadowing.length > 0) {
         const lastShadow = sections.shadowing[sections.shadowing.length - 1];
-        if (trimmed.startsWith('- **重读**：')) {
-          lastShadow.stress = trimmed.replace('- **重读**：', '').trim();
-        } else if (trimmed.startsWith('- **连读**：')) {
-          lastShadow.linking = trimmed.replace('- **连读**：', '').trim();
+        // Support both - **重读** and ◦ 重读
+        if (trimmed.includes('重读')) {
+          lastShadow.stress = trimmed.replace(/^[-◦]\s*\*\*?重读\*\*?[：:]\s*/, '').trim();
+        } else if (trimmed.includes('连读')) {
+          lastShadow.linking = trimmed.replace(/^[-◦]\s*\*\*?连读\*\*?[：:]\s*/, '').trim();
         }
       }
     } else if (currentSection === 'scenario') {
+      // Support both markdown format (### xxx) and emoji format (迷你场景：xxx)
       if (trimmed.startsWith('###')) {
         sections.scenario.push({ type: 'title', text: trimmed.replace('###', '').trim() });
+      } else if (trimmed.includes('迷你场景') || trimmed.includes('场景')) {
+        sections.scenario.push({ type: 'title', text: trimmed.replace(/.*场景[：:]\s*/, '').trim() });
+      } else if (trimmed.startsWith('• 你：') || trimmed.startsWith('你：') || trimmed.match(/^你[：:]/)) {
+        // Support emoji format: • 你： or 你：
+        sections.scenario.push({ type: 'user', text: trimmed.replace(/^[-•]\s*你[：:]\s*/, '').trim() });
+      } else if (trimmed.startsWith('• 朋友：') || trimmed.startsWith('• 网友：') || trimmed.startsWith('朋友：') || trimmed.startsWith('网友：')) {
+        // Support emoji format
+        const nameMatch = trimmed.match(/^[-•]\s*([网友朋友]+)[：:]\s*/);
+        const name = nameMatch ? nameMatch[1] : 'Friend';
+        sections.scenario.push({ type: 'friend', text: trimmed.replace(/^[-•]\s*[网友朋友]+[：:]\s*/, '').trim(), name: name });
       } else if (trimmed.match(/^\*\*(你|我)\*\*[：:]/)) {
         sections.scenario.push({ type: 'user', text: trimmed.replace(/^\*\*(你|我)\*\*[：:]/, '').trim() });
       } else if (trimmed.match(/^\*\*(.*?)\*\*[：:]/)) {
@@ -1604,6 +1633,15 @@ const NotesList: React.FC<{
                         setTimeout(() => {
                           onDeleteNote(note.id);
                         }, 50);
+                        return false;
+                      }}
+                      onTouchEnd={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setTimeout(() => {
+                          onDeleteNote(note.id);
+                        }, 50);
+                        return false;
                       }}
                       className={`p-1.5 text-neutral-600 hover:text-red-400 transition-opacity ${
                         isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
@@ -2097,6 +2135,15 @@ const VoiceCollection: React.FC<{
                         setTimeout(() => {
                           onDeleteVoice(voice.id);
                         }, 50);
+                        return false;
+                      }}
+                      onTouchEnd={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setTimeout(() => {
+                          onDeleteVoice(voice.id);
+                        }, 50);
+                        return false;
                       }}
                       onContextMenu={(e) => {
                         if (isTouch) {
