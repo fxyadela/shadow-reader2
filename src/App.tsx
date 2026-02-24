@@ -1506,7 +1506,7 @@ const ShadowReader: React.FC<{
                   </button>
 
                   {/* Language Selector Popup - always visible on touch devices, hover on desktop */}
-                  <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex gap-2 z-50 origin-bottom-right ${isTouch ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity'}`}>
+                  <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-bottom-right ${isTouch ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity'}`}>
                      <button onClick={() => handleTranslate('zh')} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'zh' ? 'bg-teal-600/30' : ''}`}>🇨🇳</button>
                      <button onClick={() => handleTranslate('ja')} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ja' ? 'bg-teal-600/30' : ''}`}>🇯🇵</button>
                      <button onClick={() => handleTranslate('ko')} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ko' ? 'bg-teal-600/30' : ''}`}>🇰🇷</button>
