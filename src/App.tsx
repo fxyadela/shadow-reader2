@@ -1499,7 +1499,6 @@ const ShadowReader: React.FC<{
                 {/* Translate */}
                 <div className="relative group">
                   <button
-                    onClick={() => handleTranslate()}
                     className={`p-3 rounded-full transition-colors ${showTranslation ? 'text-teal-400 bg-teal-900/30' : 'text-neutral-400 hover:text-white'}`}
                     title="Translate"
                   >
@@ -1507,10 +1506,10 @@ const ShadowReader: React.FC<{
                   </button>
 
                   {/* Language Selector Popup - always visible on touch devices, hover on desktop */}
-                  <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 w-32 z-50 origin-bottom-right ${isTouch ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity'}`}>
-                     <button onClick={() => handleTranslate('zh')} className={`text-xs p-2 rounded-lg text-left ${translationLang === 'zh' ? 'bg-teal-600 text-white' : 'hover:bg-white/5 text-neutral-300'}`}>Chinese (中文)</button>
-                     <button onClick={() => handleTranslate('ja')} className={`text-xs p-2 rounded-lg text-left ${translationLang === 'ja' ? 'bg-teal-600 text-white' : 'hover:bg-white/5 text-neutral-300'}`}>Japanese (日本語)</button>
-                     <button onClick={() => handleTranslate('ko')} className={`text-xs p-2 rounded-lg text-left ${translationLang === 'ko' ? 'bg-teal-600 text-white' : 'hover:bg-white/5 text-neutral-300'}`}>Korean (한국어)</button>
+                  <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex gap-2 z-50 origin-bottom-right ${isTouch ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity'}`}>
+                     <button onClick={() => handleTranslate('zh')} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'zh' ? 'bg-teal-600/30' : ''}`}>🇨🇳</button>
+                     <button onClick={() => handleTranslate('ja')} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ja' ? 'bg-teal-600/30' : ''}`}>🇯🇵</button>
+                     <button onClick={() => handleTranslate('ko')} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ko' ? 'bg-teal-600/30' : ''}`}>🇰🇷</button>
                   </div>
                 </div>
               </div>
