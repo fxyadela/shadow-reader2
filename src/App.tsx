@@ -616,7 +616,7 @@ const ShadowReader: React.FC<{
 
   // Advanced - Voice Setting
   const [pitch, setPitch] = useState(savedSettings.pitch ?? 0); // [-12, 12]
-  const [emotion, setEmotion] = useState<string>(savedSettings.emotion || 'happy'); // Default to first or auto
+  const [emotion, setEmotion] = useState<string>(savedSettings.emotion || 'auto'); // Default to first or auto
 
   // Advanced - Voice Modify
   const [modPitch, setModPitch] = useState(savedSettings.modPitch ?? 0); // [-100, 100]
