@@ -813,7 +813,7 @@ const ShadowReader: React.FC<{
     }
     
     try {
-      const apiUrl = `${getApiBaseUrl()}/api/minimax/t2a`;
+      const apiUrl = `${getApiBaseUrl()}/api/tts`;
       console.log('[TTS] Calling API:', apiUrl);
       const response = await fetch(apiUrl, {
         method: 'POST',
