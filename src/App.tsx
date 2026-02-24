@@ -398,16 +398,10 @@ const parseNoteContent = (raw: string) => {
       } else if (sections.shadowing.length > 0 && trimmed.includes('连读')) {
         const lastShadow = sections.shadowing[sections.shadowing.length - 1];
         lastShadow.linking = trimmed.replace(/^◦\s*连读[：:]\s*/, '').trim();
-      } else if (trimmed.match(/^\d+\.\s*"(.*)"$/)) {
-        // Mobile format: 1. "xxx"
-        const match = trimmed.match(/^\d+\.\s*"(.*)"$/);
-        if (match) {
-          sections.shadowing.push({ text: match[1].trim(), stress: '', linking: '' });
-        }
-      } else if (trimmed.match(/^\d+\.\s*\*\*(.*)\*\*$/)) {
-        // Markdown format: 1. **xxx**
-        const match = trimmed.match(/^\d+\.\s*\*\*(.*)\*\*$/);
-        if (match) {
+      } else if (trimmed.match(/^\d+\.\s*"?(.+)"?$/)) {
+        // Mobile format: 1. "xxx" (content may have special chars like —)
+        const match = trimmed.match(/^\d+\.\s*"?(.+)"?$/);
+        if (match && match[1]) {
           sections.shadowing.push({ text: match[1].trim(), stress: '', linking: '' });
         }
       }
