@@ -829,7 +829,7 @@ const ShadowReader: React.FC<{
             speed: speed,
             vol: vol,
             pitch: pitch,
-            emotion: emotion
+            ...(emotion !== 'auto' && { emotion: emotion })
           },
           voice_modify: {
             pitch: modPitch,
