@@ -597,6 +597,8 @@ const ShadowReader: React.FC<{
   const savedSettings = getStorageItem<Record<string, any>>(STORAGE_KEYS.SHADOW_SETTINGS, {});
 
   const [mode, setMode] = useState<'edit' | 'settings' | 'shadowing'>('edit');
+  const [showSegmentEditor, setShowSegmentEditor] = useState(false);
+  const [editedSegments, setEditedSegments] = useState<{text: string, start: number, end: number}[]>([]);
   const [text, setText] = useState(initialText || "The only way to do great work is to love what you do...");
   const [isPlaying, setIsPlaying] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success'>('idle');
@@ -718,6 +720,11 @@ const ShadowReader: React.FC<{
       });
     }
   }, [currentSegmentIndex, mode]);
+
+  // Reset itemRefs when segments change (e.g., after editing)
+  useEffect(() => {
+    itemRefs.current = itemRefs.current.slice(0, segments.length);
+  }, [segments.length]);
 
   // Auto-start if text is passed
   useEffect(() => {
@@ -1155,6 +1162,109 @@ const ShadowReader: React.FC<{
         </div>
       )}
 
+      {/* Segment Editor Modal */}
+      {showSegmentEditor && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-neutral-900 rounded-2xl border border-white/10 w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h3 className="text-lg font-semibold text-white">Edit Segments</h3>
+              <button
+                onClick={() => setShowSegmentEditor(false)}
+                className="p-2 rounded-full hover:bg-white/10 text-neutral-400"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {editedSegments.map((seg, idx) => (
+                <div key={idx} className="flex items-start gap-2">
+                  <div className="flex-1">
+                    <textarea
+                      value={seg.text}
+                      onChange={(e) => {
+                        const newSegments = [...editedSegments];
+                        newSegments[idx].text = e.target.value;
+                        setEditedSegments(newSegments);
+                      }}
+                      className="w-full bg-neutral-800 text-white p-3 rounded-xl border border-white/10 focus:border-teal-500/50 outline-none resize-none text-sm"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {idx > 0 && (
+                      <button
+                        onClick={() => {
+                          // Merge with previous
+                          const newSegments = [...editedSegments];
+                          newSegments[idx - 1].text += ' ' + seg.text;
+                          newSegments.splice(idx, 1);
+                          setEditedSegments(newSegments);
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-500 hover:text-teal-400"
+                        title="Merge with previous"
+                      >
+                        <ChevronUp size={16} />
+                      </button>
+                    )}
+                    {idx < editedSegments.length - 1 && (
+                      <button
+                        onClick={() => {
+                          // Merge with next
+                          const newSegments = [...editedSegments];
+                          newSegments[idx].text += ' ' + seg.text;
+                          newSegments.splice(idx + 1, 1);
+                          setEditedSegments(newSegments);
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-500 hover:text-teal-400"
+                        title="Merge with next"
+                      >
+                        <ChevronDown size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-3 p-4 border-t border-white/10">
+              <button
+                onClick={() => setShowSegmentEditor(false)}
+                className="flex-1 px-4 py-3 rounded-xl bg-neutral-800 text-neutral-300 hover:bg-neutral-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  // Update segments with new text
+                  const newSegments = editedSegments.map((seg, idx) => {
+                    // Keep original timing
+                    const original = segments[idx];
+                    return {
+                      ...seg,
+                      start: original?.start ?? idx * 2,
+                      end: original?.end ?? (idx + 1) * 2
+                    };
+                  });
+                  // Force re-render with new segments
+                  setSegments(newSegments);
+                  // Also update text state so edits persist when going back to edit mode
+                  setText(editedSegments.map(s => s.text).join('\n'));
+                  // Reset segment index if out of bounds
+                  if (currentSegmentIndex >= newSegments.length) {
+                    setCurrentSegmentIndex(Math.max(0, newSegments.length - 1));
+                  }
+                  setShowSegmentEditor(false);
+                }}
+                className="flex-1 px-4 py-3 rounded-xl bg-teal-600 text-white hover:bg-teal-500 transition-colors"
+              >
+                Apply Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="mb-6 mt-4 px-2 flex justify-between items-end">
         <div>
@@ -1188,6 +1298,16 @@ const ShadowReader: React.FC<{
                   <Edit3 size={20} />
                 </button>
               )}
+              <button
+                onClick={() => {
+                  setEditedSegments(segments.map(s => ({ text: s.text, start: s.start, end: s.end })));
+                  setShowSegmentEditor(true);
+                }}
+                className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                title="Edit Segments"
+              >
+                <List size={20} />
+              </button>
             </div>
           )}
       </header>
@@ -1762,6 +1882,7 @@ const NotesDetail: React.FC<{
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(note.rawContent === "");
   const [rawText, setRawText] = useState(note.rawContent);
+  const [showToast, setShowToast] = useState(false);
   const detailContentRef = useRef<HTMLDivElement>(null);
 
   // Export note detail as image
@@ -1779,6 +1900,10 @@ const NotesDetail: React.FC<{
       link.download = `note-${note.date.replace(/\//g, '-')}.png`;
       link.href = dataUrl;
       link.click();
+
+      // Show success toast
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2000);
     } catch (error) {
       console.error('Export failed:', error);
     }
@@ -2552,6 +2677,18 @@ const NotesDetail: React.FC<{
           </div>
         </motion.div>
       )}
+
+      {/* Toast notification */}
+      {showToast && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-teal-500 text-black px-4 py-2 rounded-full font-medium text-sm shadow-lg z-50"
+        >
+          Saved to Photos
+        </motion.div>
+      )}
       </div>
     </motion.div>
   );
@@ -2681,7 +2818,7 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
                       e.stopPropagation();
                       onRemove(voice.id);
                     }}
-                    className="p-1 rounded-full text-neutral-500 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className={`p-1 rounded-full text-neutral-500 hover:text-red-400 hover:bg-red-400/10 ${isTouch ? 'opacity-100' : 'sm:opacity-0 sm:group-hover:opacity-100'} transition-opacity`}
                   >
                     <X size={12} />
                   </button>
