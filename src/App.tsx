@@ -1602,21 +1602,12 @@ const NotesList: React.FC<{
           </div>
         ) : (
           filteredNotes.map(note => {
-            const { swipeOffset, handlers } = useSwipeToDelete(() => onDeleteNote(note.id));
             return (
               <div
                 key={note.id}
-                onClick={!isTouch ? () => onSelectNote(note) : undefined}
-                {...(isTouch ? handlers : {})}
-                style={isTouch ? { transform: `translateX(${swipeOffset}px)`, transition: swipeOffset === 0 ? 'transform 0.3s' : 'none' } : undefined}
-                className={`bg-[#18181b] border border-white/5 rounded-2xl p-5 active:scale-[0.98] transition-transform group relative ${!isTouch ? 'cursor-pointer hover:bg-white/[0.02]' : ''}`}
+                onClick={() => onSelectNote(note)}
+                className="bg-[#18181b] border border-white/5 rounded-2xl p-5 active:scale-[0.98] transition-transform group cursor-pointer hover:bg-white/[0.02]"
               >
-                {/* Delete hint background when swiping */}
-                {isTouch && swipeOffset < 0 && (
-                  <div className="absolute right-0 top-0 bottom-0 flex items-center justify-end pr-4 rounded-2xl bg-red-500/20">
-                    <Trash2 size={20} className="text-red-400" />
-                  </div>
-                )}
                 <div className="flex justify-between items-start mb-3 gap-2">
                   <span className="bg-teal-950/30 text-teal-500/80 text-[10px] font-mono px-2 py-1 rounded-full border border-teal-900/30">
                     Daily Review
@@ -1625,25 +1616,10 @@ const NotesList: React.FC<{
                     <span className="text-neutral-500 text-xs font-mono">{note.date}</span>
                     <button
                       onClick={(e) => {
-                        e.preventDefault();
                         e.stopPropagation();
-                        // Delay to prevent white screen on mobile
-                        setTimeout(() => {
-                          onDeleteNote(note.id);
-                        }, 50);
-                        return false;
+                        onDeleteNote(note.id);
                       }}
-                      onTouchEnd={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setTimeout(() => {
-                          onDeleteNote(note.id);
-                        }, 50);
-                        return false;
-                      }}
-                      className={`p-1.5 text-neutral-600 hover:text-red-400 transition-opacity ${
-                        isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      }`}
+                      className="p-1.5 text-neutral-600 hover:text-red-400 transition-opacity opacity-100"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -2104,21 +2080,12 @@ const VoiceCollection: React.FC<{
           </div>
         ) : (
           voices.map(voice => {
-            const { swipeOffset, handlers } = useSwipeToDelete(() => onDeleteVoice(voice.id));
             return (
               <div
                 key={voice.id}
                 onClick={() => onPlayVoice(voice)}
-                {...(isTouch ? handlers : {})}
-                style={isTouch ? { transform: `translateX(${swipeOffset}px)`, transition: swipeOffset === 0 ? 'transform 0.3s' : 'none' } : undefined}
-                className="bg-[#18181b] border border-white/5 rounded-2xl p-5 transition-all hover:bg-white/[0.02] active:scale-[0.98] cursor-pointer group relative"
+                className="bg-[#18181b] border border-white/5 rounded-2xl p-5 transition-all hover:bg-white/[0.02] active:scale-[0.98] cursor-pointer group"
               >
-                {/* Delete hint background when swiping */}
-                {isTouch && swipeOffset < 0 && (
-                  <div className="absolute right-0 top-0 bottom-0 flex items-center justify-end pr-4 rounded-2xl bg-red-500/20">
-                    <Trash2 size={20} className="text-red-400" />
-                  </div>
-                )}
                 <div className="flex justify-between items-start mb-3">
                   <span className="bg-teal-950/30 text-teal-400/80 text-[10px] font-mono px-2 py-1 rounded-full border border-teal-900/30">
                     {new Date(voice.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
