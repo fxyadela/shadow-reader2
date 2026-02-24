@@ -293,21 +293,40 @@ const parseNoteContent = (raw: string) => {
     if (!trimmed) continue;
 
     // Support both ## format and emoji-only format (more flexible matching)
-    if (/^#{0,2}\s*✍️\s*标题/.test(trimmed)) { currentSection = 'title'; continue; }
-    if (/^#{0,2}\s*💬\s*对话内容/.test(trimmed)) { currentSection = 'chat'; continue; }
-    if (/^#{0,2}\s*🏷️\s*标签/.test(trimmed)) { currentSection = 'tags'; continue; }
-    if (/^#{0,2}\s*🔄\s*表达升级/.test(trimmed)) { currentSection = 'upgrades'; continue; }
-    if (/^#{0,2}\s*🧩\s*实用句型/.test(trimmed)) { currentSection = 'patterns'; continue; }
-    if (/^#{0,2}\s*🗣️\s*跟读材料/.test(trimmed)) { currentSection = 'shadowing'; continue; }
-    if (/^#{0,2}\s*🎭\s*情景重练/.test(trimmed)) { currentSection = 'scenario'; continue; }
+    // Use includes() for more robust matching - handle different emoji encodings
+    if (trimmed.includes('✍️') && trimmed.includes('标题')) { currentSection = 'title'; continue; }
+    if (trimmed.includes('🏷️') && trimmed.includes('标签')) { currentSection = 'tags'; continue; }
+    if (trimmed.includes('💬') && trimmed.includes('对话')) { currentSection = 'chat'; continue; }
+    if (trimmed.includes('🔄') && trimmed.includes('升级')) { currentSection = 'upgrades'; continue; }
+    if (trimmed.includes('🧩') && trimmed.includes('句型')) { currentSection = 'patterns'; continue; }
+    if (trimmed.includes('🗣️') && trimmed.includes('跟读')) { currentSection = 'shadowing'; continue; }
+    if (trimmed.includes('🎭') && trimmed.includes('情景')) { currentSection = 'scenario'; continue; }
+
+    // Fallback: check for markdown format without emoji
+    if (trimmed.startsWith('##') && trimmed.includes('标题')) { currentSection = 'title'; continue; }
+    if (trimmed.startsWith('##') && trimmed.includes('标签')) { currentSection = 'tags'; continue; }
+    if (trimmed.startsWith('##') && trimmed.includes('对话')) { currentSection = 'chat'; continue; }
+    if (trimmed.startsWith('##') && trimmed.includes('升级')) { currentSection = 'upgrades'; continue; }
+    if (trimmed.startsWith('##') && trimmed.includes('句型')) { currentSection = 'patterns'; continue; }
+    if (trimmed.startsWith('##') && trimmed.includes('跟读')) { currentSection = 'shadowing'; continue; }
+    if (trimmed.startsWith('##') && trimmed.includes('情景')) { currentSection = 'scenario'; continue; }
 
     if (currentSection === 'title') {
       if (!sections.title) sections.title = trimmed;
     } else if (currentSection === 'tags') {
       // Parse tags like #宠物日常 #英语表达提升 (may include tags on same line as header)
-      const tagMatches = trimmed.match(/#[^\s#]+/g);
-      if (tagMatches) {
+      // Remove header prefix first, then find tags
+      const tagLine = trimmed.replace(/^#{0,2}\s*🏷️\s*标签\s*/, '');
+      const tagMatches = tagLine.match(/#[^\s#]+/g) || [];
+      // Also check if tags are on same line as header (handled by removal above)
+      if (tagMatches.length > 0) {
         sections.tags.push(...tagMatches.map(t => t.replace('#', '')));
+      } else if (trimmed.startsWith('#')) {
+        // Handle tags on separate lines after header
+        const tagMatches2 = trimmed.match(/#[^\s#]+/g);
+        if (tagMatches2) {
+          sections.tags.push(...tagMatches2.map(t => t.replace('#', '')));
+        }
       }
     } else if (currentSection === 'chat') {
       // Support both markdown format (###) and emoji format (第一轮)
