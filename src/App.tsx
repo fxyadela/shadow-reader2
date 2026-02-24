@@ -354,12 +354,11 @@ const parseNoteContent = (raw: string) => {
         sections.chat.push({ id: `chat-${i}`, role: 'ai', text: text, round: currentRound });
       }
     } else if (currentSection === 'upgrades') {
-      // Support both markdown format and emoji-only format
-      // Markdown: 1. **her his fur** → **her fur**：...
-      // Emoji: 1. her his fur → her fur：...
-      let match = trimmed.match(/^\d+\.\s*\*\*(.*?)\*\*\s*→\s*\*\*(.*?)\*\*[：:](.*)$/);
+      // Mobile format: 1. her his fur → her fur：xxx
+      // Also support markdown format
+      let match = trimmed.match(/^\d+\.\s*(.+)\s*→\s*(.+)[：:]\s*(.+)$/);
       if (!match) {
-        match = trimmed.match(/^\d+\.\s*(.+?)\s*→\s*(.+?)[：:]\s*(.+)$/);
+        match = trimmed.match(/^\d+\.\s*\*\*(.*?)\*\*\s*→\s*\*\*(.*?)\*\*[：:](.*)$/);
       }
       if (match) {
         sections.upgrades.push({
@@ -369,10 +368,10 @@ const parseNoteContent = (raw: string) => {
         });
       }
     } else if (currentSection === 'patterns') {
-      // Support both markdown format (- **xxx**) and emoji format (◦ xxx or just xxx)
-      // Also support plain format: 1. xxx (without any prefix)
-      if (trimmed.match(/^\d+\.\s*\*\*(.*?)\*\*$/) || trimmed.match(/^\d+\.\s*[◦•]\s*(.*)$/) || trimmed.match(/^\d+\.\s+(.+)$/)) {
-        const patternText = trimmed.replace(/^\d+\.\s*\*\*(.*?)\*\*$/, '$1').replace(/^\d+\.\s*[◦•]\s*/, '').replace(/^\d+\.\s+/, '').trim();
+      // Mobile format: 1. ... can be such a handful!
+      // Also support markdown format and emoji format
+      if (trimmed.match(/^\d+\.\s*(.+)$/) && !trimmed.includes('句型解释') && !trimmed.includes('替换例句')) {
+        const patternText = trimmed.replace(/^\d+\.\s*/, '').trim();
         currentPattern = {
           id: `p-${i}`,
           pattern: patternText,
@@ -380,37 +379,35 @@ const parseNoteContent = (raw: string) => {
           examples: []
         };
         sections.patterns.push(currentPattern);
-      } else if (currentPattern && (trimmed.startsWith('- **句型框架**：') || trimmed.startsWith('◦ 句型解释：') || trimmed.includes('句型解释'))) {
-        currentPattern.framework = trimmed.replace(/^[-◦]\s*\*\*?句型(框架|解释)\*\*?[：:]?\s*/, '').trim();
-      } else if (currentPattern && (trimmed.startsWith('- **替换例句') || trimmed.startsWith('◦ 替换例句') || trimmed.includes('替换例句'))) {
-        // Support both markdown and emoji format for examples
-        // Also support format without number: 替换例句1 or 替换例句
-        const exMatch = trimmed.match(/[-◦]?\s*\*\*?替换例句\d*\*\*?[：:]\s*(.+)$/);
+      } else if (currentPattern && trimmed.includes('句型解释')) {
+        currentPattern.framework = trimmed.replace(/^[-◦]\s*\*\*?句型解释\*\*?[：:]\s*/, '').trim();
+      } else if (currentPattern && trimmed.includes('替换例句')) {
+        // Mobile format: ◦ 替换例句1：xxx
+        const exMatch = trimmed.match(/[-◦]\s*替换例句\d*[：:]\s*(.+)$/);
         if (exMatch) {
           currentPattern.examples.push(exMatch[1].trim());
         }
       }
     } else if (currentSection === 'shadowing') {
-      // Support both markdown format (**"xxx"**) and emoji format ("xxx")
-      // Also support curly quotes: "xxx"
-      // Support with or without number prefix: 1. "xxx" or "xxx"
-      let match = trimmed.match(/^\d+\.\s*\*\*"(.*?)"\*\*$/);
+      // Mobile format: 1. "Aww, cats with messy fur..."
+      // Support quotes with or without number prefix
+      let match = trimmed.match(/^\d+\.\s*"(.*)"$/);
       if (!match) {
-        match = trimmed.match(/^\d+\.\s*"(.*?)"$/) || trimmed.match(/^\d+\.\s*[""](.*?)[""]$/);
+        match = trimmed.match(/^\d+\.\s*"(.*)"$/);
       }
-      // Also support format without number prefix: "xxx"
+      // Also support markdown format
       if (!match) {
-        match = trimmed.match(/^"(.+)"$/) || trimmed.match(/^[""](.+?)[""]$/);
+        match = trimmed.match(/^\d+\.\s*\*\*(.*)\*\*$/);
       }
       if (match) {
         sections.shadowing.push({ text: match[1].trim(), stress: '', linking: '' });
       } else if (sections.shadowing.length > 0) {
         const lastShadow = sections.shadowing[sections.shadowing.length - 1];
-        // Support both - **重读** and ◦ 重读
+        // Mobile format: ◦ 重读：xxx
         if (trimmed.includes('重读')) {
-          lastShadow.stress = trimmed.replace(/^[-◦]\s*\*\*?重读\*\*?[：:]\s*/, '').trim();
+          lastShadow.stress = trimmed.replace(/^[-◦]\s*重读[：:]\s*/, '').trim();
         } else if (trimmed.includes('连读')) {
-          lastShadow.linking = trimmed.replace(/^[-◦]\s*\*\*?连读\*\*?[：:]\s*/, '').trim();
+          lastShadow.linking = trimmed.replace(/^[-◦]\s*连读[：:]\s*/, '').trim();
         }
       }
     } else if (currentSection === 'scenario') {
