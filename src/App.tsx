@@ -1630,13 +1630,14 @@ const NotesList: React.FC<{
 // COMPONENT: NOTES DETAIL
 // ==========================================
 
-const NotesDetail: React.FC<{ 
+const NotesDetail: React.FC<{
   note: Note,
   onNavigateToShadow: (text: string) => void,
   onBack: () => void,
   onSave: (updatedNote: Note) => void,
-  onDelete: (id: string) => void
-}> = ({ note, onNavigateToShadow, onBack, onSave, onDelete }) => {
+  onDelete: (id: string) => void,
+  isTouch?: boolean
+}> = ({ note, onNavigateToShadow, onBack, onSave, onDelete, isTouch = false }) => {
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(note.rawContent === "");
   const [rawText, setRawText] = useState(note.rawContent);
@@ -1813,7 +1814,7 @@ const NotesDetail: React.FC<{
                                 </p>
                                 <button 
                                   onClick={() => onNavigateToShadow(msg.correction!)}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400"
+                                  className={`${isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity p-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400`}
                                   title="Shadow this sentence"
                                 >
                                   <Headphones size={14} />
@@ -1826,7 +1827,7 @@ const NotesDetail: React.FC<{
                               <p>{msg.text}</p>
                               <button 
                                 onClick={() => onNavigateToShadow(msg.text)}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 -mr-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400 shrink-0"
+                                className={`${isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity p-1 -mr-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400 shrink-0`}
                                 title="Shadow this sentence"
                               >
                                 <Headphones size={14} />
@@ -1870,7 +1871,7 @@ const NotesDetail: React.FC<{
                       </div>
                       <button 
                         onClick={() => onNavigateToShadow(item.improved)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400"
+                        className={`${isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity p-1.5 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400`}
                         title="Shadow this sentence"
                       >
                         <Headphones size={16} />
@@ -2330,13 +2331,14 @@ Shadowing Practice
                 isTouch={isTouch}
               />
             ) : selectedNote ? (
-              <NotesDetail 
-                key="detail" 
+              <NotesDetail
+                key="detail"
                 note={selectedNote}
-                onNavigateToShadow={handleNavigateToShadow} 
+                onNavigateToShadow={handleNavigateToShadow}
                 onBack={() => setNotesView('list')}
                 onSave={handleUpdateNote}
                 onDelete={handleDeleteNote}
+                isTouch={isTouch}
               />
             ) : null}
           </AnimatePresence>
