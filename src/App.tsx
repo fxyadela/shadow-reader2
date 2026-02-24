@@ -292,34 +292,30 @@ const parseNoteContent = (raw: string) => {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // Support both ## format and emoji-only format (more flexible matching)
-    // Use exact emoji matching with includes() - more robust
-    if (trimmed.includes('✍️') && trimmed.includes('标题')) { currentSection = 'title'; continue; }
-    else if (trimmed.includes('🏷️') && trimmed.includes('标签')) { currentSection = 'tags'; continue; }
-    else if (trimmed.includes('💬') && trimmed.includes('对话')) { currentSection = 'chat'; continue; }
-    else if (trimmed.includes('🔄') && trimmed.includes('升级')) { currentSection = 'upgrades'; continue; }
-    else if (trimmed.includes('🧩') && trimmed.includes('句型')) { currentSection = 'patterns'; continue; }
-    else if (trimmed.includes('🗣️') && trimmed.includes('跟读')) { currentSection = 'shadowing'; continue; }
-    else if (trimmed.includes('🎭') && trimmed.includes('情景')) { currentSection = 'scenario'; continue; }
+    // Support both ## format and emoji-only format
+    // Check for section headers at the START of line (not anywhere in the line)
+    // Also support emoji + Chinese keyword combinations
+    const startsWithEmoji = trimmed.startsWith('✍️') || trimmed.startsWith('🏷️') ||
+                           trimmed.startsWith('💬') || trimmed.startsWith('🔄') ||
+                           trimmed.startsWith('🧩') || trimmed.startsWith('🗣️') ||
+                           trimmed.startsWith('🎭');
 
-    // Also check for standalone section titles (emoji-only format without title keyword)
-    // e.g., just "✍️" at start or "💬" at start
-    else if (trimmed.startsWith('✍️')) { currentSection = 'title'; continue; }
-    else if (trimmed.startsWith('🏷️')) { currentSection = 'tags'; continue; }
-    else if (trimmed.startsWith('💬')) { currentSection = 'chat'; continue; }
-    else if (trimmed.startsWith('🔄')) { currentSection = 'upgrades'; continue; }
-    else if (trimmed.startsWith('🧩')) { currentSection = 'patterns'; continue; }
-    else if (trimmed.startsWith('🗣️')) { currentSection = 'shadowing'; continue; }
-    else if (trimmed.startsWith('🎭')) { currentSection = 'scenario'; continue; }
+    if (trimmed.startsWith('## 标题') || trimmed.startsWith('##✍️') || (trimmed.startsWith('✍️') && trimmed.includes('标题'))) { currentSection = 'title'; continue; }
+    else if (trimmed.startsWith('## 标签') || trimmed.startsWith('##🏷️') || (trimmed.startsWith('🏷️') && trimmed.includes('标签'))) { currentSection = 'tags'; continue; }
+    else if (trimmed.startsWith('## 对话') || trimmed.startsWith('##💬') || (trimmed.startsWith('💬') && trimmed.includes('对话'))) { currentSection = 'chat'; continue; }
+    else if (trimmed.startsWith('## 表达升级') || trimmed.startsWith('##🔄') || (trimmed.startsWith('🔄') && trimmed.includes('升级'))) { currentSection = 'upgrades'; continue; }
+    else if (trimmed.startsWith('## 实用句型') || trimmed.startsWith('##🧩') || (trimmed.startsWith('🧩') && trimmed.includes('句型'))) { currentSection = 'patterns'; continue; }
+    else if (trimmed.startsWith('## 跟读材料') || trimmed.startsWith('##🗣️') || (trimmed.startsWith('🗣️') && trimmed.includes('跟读'))) { currentSection = 'shadowing'; continue; }
+    else if (trimmed.startsWith('## 情景重练') || trimmed.startsWith('##🎭') || (trimmed.startsWith('🎭') && trimmed.includes('情景'))) { currentSection = 'scenario'; continue; }
 
-    // Fallback: check for markdown format without emoji
-    else if (trimmed.startsWith('##') && trimmed.includes('标题')) { currentSection = 'title'; continue; }
-    else if (trimmed.startsWith('##') && trimmed.includes('标签')) { currentSection = 'tags'; continue; }
-    else if (trimmed.startsWith('##') && trimmed.includes('对话')) { currentSection = 'chat'; continue; }
-    else if (trimmed.startsWith('##') && trimmed.includes('升级')) { currentSection = 'upgrades'; continue; }
-    else if (trimmed.startsWith('##') && trimmed.includes('句型')) { currentSection = 'patterns'; continue; }
-    else if (trimmed.startsWith('##') && trimmed.includes('跟读')) { currentSection = 'shadowing'; continue; }
-    else if (trimmed.startsWith('##') && trimmed.includes('情景')) { currentSection = 'scenario'; continue; }
+    // Also check for just the section keywords at start (for format like "标题 xxx" without emoji)
+    else if (/^标题[：:\s]/.test(trimmed)) { currentSection = 'title'; continue; }
+    else if (/^标签[：:\s]/.test(trimmed)) { currentSection = 'tags'; continue; }
+    else if (/^对话内容/.test(trimmed)) { currentSection = 'chat'; continue; }
+    else if (/^表达升级/.test(trimmed)) { currentSection = 'upgrades'; continue; }
+    else if (/^实用句型/.test(trimmed)) { currentSection = 'patterns'; continue; }
+    else if (/^跟读材料/.test(trimmed)) { currentSection = 'shadowing'; continue; }
+    else if (/^情景重练/.test(trimmed)) { currentSection = 'scenario'; continue; }
 
     if (currentSection === 'title') {
       if (!sections.title) sections.title = trimmed;
