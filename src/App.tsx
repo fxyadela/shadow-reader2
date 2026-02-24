@@ -354,11 +354,12 @@ const parseNoteContent = (raw: string) => {
         sections.chat.push({ id: `chat-${i}`, role: 'ai', text: text, round: currentRound });
       }
     } else if (currentSection === 'upgrades') {
-      // Mobile format: 1. her his fur → her fur：xxx
-      // Also support markdown format
-      let match = trimmed.match(/^\d+\.\s*(.+)\s*→\s*(.+)[：:]\s*(.+)$/);
+      // Support BOTH markdown format and mobile format
+      // Markdown: 1. **xxx** → **yyy**：zzz
+      // Mobile: 1. xxx → yyy：zzz
+      let match = trimmed.match(/^\d+\.\s*\*\*(.*?)\*\*\s*→\s*\*\*(.*?)\*\*[：:](.*)$/);
       if (!match) {
-        match = trimmed.match(/^\d+\.\s*\*\*(.*?)\*\*\s*→\s*\*\*(.*?)\*\*[：:](.*)$/);
+        match = trimmed.match(/^\d+\.\s*(.+)\s*→\s*(.+)[：:]\s*(.+)$/);
       }
       if (match) {
         sections.upgrades.push({
@@ -368,10 +369,11 @@ const parseNoteContent = (raw: string) => {
         });
       }
     } else if (currentSection === 'patterns') {
-      // Mobile format: 1. ... can be such a handful!
-      // Also support markdown format and emoji format
-      if (trimmed.match(/^\d+\.\s*(.+)$/) && !trimmed.includes('句型解释') && !trimmed.includes('替换例句')) {
-        const patternText = trimmed.replace(/^\d+\.\s*/, '').trim();
+      // Support BOTH markdown format (with **) and mobile format (without **)
+      // Markdown: 1. **xxx**
+      // Mobile: 1. xxx
+      if (trimmed.match(/^\d+\.\s*\*\*(.*)\*\*$/) || (trimmed.match(/^\d+\.\s*(.+)$/) && !trimmed.includes('句型解释') && !trimmed.includes('替换例句'))) {
+        const patternText = trimmed.replace(/^\d+\.\s*\*\*(.*)\*\*$/, '$1').replace(/^\d+\.\s*/, '').trim();
         currentPattern = {
           id: `p-${i}`,
           pattern: patternText,
@@ -380,34 +382,32 @@ const parseNoteContent = (raw: string) => {
         };
         sections.patterns.push(currentPattern);
       } else if (currentPattern && trimmed.includes('句型解释')) {
-        currentPattern.framework = trimmed.replace(/^[-◦]\s*\*\*?句型解释\*\*?[：:]\s*/, '').trim();
+        // Support both: - **句型框架**： and ◦ 句型解释：
+        currentPattern.framework = trimmed.replace(/^[-◦]\s*\*\*?句型(框架|解释)\*\*?[：:]\s*/, '').trim();
       } else if (currentPattern && trimmed.includes('替换例句')) {
-        // Mobile format: ◦ 替换例句1：xxx
-        const exMatch = trimmed.match(/[-◦]\s*替换例句\d*[：:]\s*(.+)$/);
+        // Support both: - **替换例句**： and ◦ 替换例句1：
+        const exMatch = trimmed.match(/[-◦]\s*\*\*?替换例句\d*\*\*?[：:]\s*(.+)$/);
         if (exMatch) {
           currentPattern.examples.push(exMatch[1].trim());
         }
       }
     } else if (currentSection === 'shadowing') {
-      // Mobile format: 1. "Aww, cats with messy fur..."
-      // Support quotes with or without number prefix
-      let match = trimmed.match(/^\d+\.\s*"(.*)"$/);
+      // Support BOTH markdown format (with **) and mobile format (without **)
+      // Markdown: 1. **"xxx"**
+      // Mobile: 1. "xxx"
+      let match = trimmed.match(/^\d+\.\s*\*\*(.*)\*\*$/);
       if (!match) {
         match = trimmed.match(/^\d+\.\s*"(.*)"$/);
-      }
-      // Also support markdown format
-      if (!match) {
-        match = trimmed.match(/^\d+\.\s*\*\*(.*)\*\*$/);
       }
       if (match) {
         sections.shadowing.push({ text: match[1].trim(), stress: '', linking: '' });
       } else if (sections.shadowing.length > 0) {
         const lastShadow = sections.shadowing[sections.shadowing.length - 1];
-        // Mobile format: ◦ 重读：xxx
+        // Support both: - **重读**： and ◦ 重读：
         if (trimmed.includes('重读')) {
-          lastShadow.stress = trimmed.replace(/^[-◦]\s*重读[：:]\s*/, '').trim();
+          lastShadow.stress = trimmed.replace(/^[-◦]\s*\*\*?重读\*\*?[：:]\s*/, '').trim();
         } else if (trimmed.includes('连读')) {
-          lastShadow.linking = trimmed.replace(/^[-◦]\s*连读[：:]\s*/, '').trim();
+          lastShadow.linking = trimmed.replace(/^[-◦]\s*\*\*?连读\*\*?[：:]\s*/, '').trim();
         }
       }
     } else if (currentSection === 'scenario') {
