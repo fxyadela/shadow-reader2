@@ -941,6 +941,10 @@ const ShadowReader: React.FC<{
         const data = await response.json();
         if (data.translatedText) {
           translations.push(data.translatedText);
+        } else if (data.error) {
+          console.error('Translation API error:', data.error);
+          alert(`Translation failed: ${data.error}`);
+          translations.push(segment.text); // Fallback to original
         } else {
           translations.push(segment.text); // Fallback to original
         }

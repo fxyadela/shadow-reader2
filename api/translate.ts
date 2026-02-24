@@ -6,6 +6,11 @@ export default async function handler(
 ) {
   const GLM_API_KEY = process.env.GLM_API_KEY || '';
 
+  // Check if API key is configured
+  if (!GLM_API_KEY) {
+    return response.status(500).json({ error: 'GLM_API_KEY not configured. Please add it in Vercel settings.' });
+  }
+
   if (request.method !== 'POST') {
     return response.status(405).json({ error: 'Method not allowed' });
   }
@@ -41,7 +46,8 @@ export default async function handler(
 
     if (!res.ok) {
       const errorData = await res.json();
-      throw new Error(errorData.error?.message || 'Translation failed');
+      console.error('GLM API error:', errorData);
+      return response.status(res.status).json({ error: errorData.error?.message || 'Translation failed' });
     }
 
     const data = await res.json();
@@ -50,6 +56,6 @@ export default async function handler(
     response.json({ translatedText });
   } catch (error) {
     console.error('Translation error:', error);
-    response.status(500).json({ error: 'Translation failed' });
+    response.status(500).json({ error: error instanceof Error ? error.message : 'Translation failed' });
   }
 }
