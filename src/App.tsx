@@ -795,6 +795,10 @@ const ShadowReader: React.FC<{
         const duration = newAudio.duration;
         const timedSegments = calculateLyricsTimestamps(rawSegments, duration);
         setSegments(timedSegments);
+        // Set initial segment index when starting playback
+        if (timedSegments.length > 0) {
+          setCurrentSegmentIndex(0);
+        }
         newAudio.currentTime = 0;
         newAudio.play().catch(e => console.error("Playback failed:", e));
         setIsPlaying(true);
@@ -869,6 +873,10 @@ const ShadowReader: React.FC<{
           const duration = newAudio.duration;
           const timedSegments = calculateLyricsTimestamps(rawSegments, duration);
           setSegments(timedSegments);
+          // Set initial segment index when starting playback
+          if (timedSegments.length > 0) {
+            setCurrentSegmentIndex(0);
+          }
           newAudio.currentTime = 0; // Ensure start at 0
           newAudio.play().catch(e => console.error("Playback failed:", e));
           setIsPlaying(true);
