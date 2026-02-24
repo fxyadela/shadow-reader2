@@ -559,7 +559,7 @@ const MODELS = [
 ];
 
 const EMOTIONS = [
-  'happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised', 'calm', 'fluent', 'whisper'
+  'auto', 'happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised', 'calm', 'fluent', 'whisper'
 ];
 
 const SOUND_EFFECTS = [
@@ -824,6 +824,7 @@ const ShadowReader: React.FC<{
           model: model,
           text: text,
           stream: false,
+          language_boost: 'auto',
           voice_setting: {
             voice_id: selectedVoice,
             speed: speed,
