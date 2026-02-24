@@ -691,12 +691,12 @@ const ShadowReader: React.FC<{
         setMode('shadowing');
         // Initialize playback
         setAudio(null); // Stop any existing audio
-        
+
         const newAudio = new Audio(initialAudioUrl);
         setAudio(newAudio); // Assign immediately
-        
+
         const rawSegments = parseLyrics(initialText);
-        
+
         newAudio.onloadedmetadata = () => {
           const duration = newAudio.duration;
           const timedSegments = calculateLyricsTimestamps(rawSegments, duration);
@@ -706,7 +706,8 @@ const ShadowReader: React.FC<{
           setIsPlaying(true);
         };
       } else {
-        setMode('settings'); 
+        // Show edit mode so user can edit the text
+        setMode('edit');
       }
     }
   }, [initialText, playbackMode, initialAudioUrl]);
@@ -1418,19 +1419,6 @@ const ShadowReader: React.FC<{
                             </motion.p>
                           )}
                         </div>
-                        
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSaveSegment(seg);
-                          }}
-                          className={`absolute right-0 top-1/2 -translate-y-1/2 p-3 rounded-full bg-neutral-800/80 text-neutral-400 hover:text-teal-400 hover:bg-neutral-700 transition-all ${
-                            idx === currentSegmentIndex ? 'opacity-100 translate-x-12' : 'opacity-0 pointer-events-none'
-                          }`}
-                          title="Save to Notes"
-                        >
-                          <Save size={20} />
-                        </button>
                       </div>
                     </div>
                   ))}
