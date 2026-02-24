@@ -9,7 +9,7 @@ const GLM_API_KEY = process.env.GLM_API_KEY || '';
 
 // Create Express app
 const app = express();
-const PORT = 3000;
+const PORT = 3001;
 
 // CORS headers for mobile access
 app.use((req, res, next) => {
@@ -26,6 +26,27 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // API Routes
+app.post("/api/tts", async (req: Request, res: Response) => {
+  console.log('[MiniMax TTS] Received request');
+  try {
+    const response = await fetch('https://api.minimax.io/v1/t2a_v2', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${MINIMAX_API_KEY}`
+      },
+      body: JSON.stringify(req.body)
+    });
+
+    console.log('[MiniMax TTS] Response status:', response.status);
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('[MiniMax TTS] Proxy error:', error);
+    res.status(500).json({ error: 'Failed to fetch from MiniMax API' });
+  }
+});
+
 app.post("/api/minimax/t2a", async (req: Request, res: Response) => {
   console.log('[MiniMax TTS] Received request');
   try {
@@ -106,3 +127,8 @@ app.get('*', (req: Request, res: Response) => {
 
 // Export handler for Vercel
 export default app;
+
+// Start server for local development
+app.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+});

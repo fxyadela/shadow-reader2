@@ -39,7 +39,9 @@ import {
   Check,
   SkipBack,
   SkipForward,
-  Download
+  Download,
+  Gauge,
+  Menu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -62,7 +64,8 @@ const getApiBaseUrl = () => {
 const STORAGE_KEYS = {
   NOTES: 'shadow-reader-notes',
   SAVED_VOICES: 'shadow-reader-voices',
-  SHADOW_SETTINGS: 'shadow-reader-settings'
+  SHADOW_SETTINGS: 'shadow-reader-settings',
+  SENTENCE_VOICE_ASSOCIATIONS: 'shadow-reader-sentence-voice-associations'
 } as const;
 
 // Generic get/set for localStorage
@@ -583,7 +586,7 @@ const ShadowReader: React.FC<{
   onBack?: () => void,
   isStandalone?: boolean,
   onSaveNote?: (content: string) => void,
-  onSaveVoice?: (audioUrl: string, duration: number, text: string) => void,
+  onSaveVoice?: (audioUrl: string, duration: number, text: string, customName?: string) => void,
   playbackMode?: boolean,
   initialAudioUrl?: string,
   isTouch?: boolean
@@ -595,6 +598,9 @@ const ShadowReader: React.FC<{
   const [text, setText] = useState(initialText || "The only way to do great work is to love what you do...");
   const [isPlaying, setIsPlaying] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success'>('idle');
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [pendingVoiceData, setPendingVoiceData] = useState<{audioUrl: string, duration: number, text: string} | null>(null);
+  const [voiceNameInput, setVoiceNameInput] = useState('');
 
   // Refs for scrolling
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -603,7 +609,7 @@ const ShadowReader: React.FC<{
   // --- API Parameters State ---
 
   // Basic
-  const [model, setModel] = useState(savedSettings.model || 'speech-2.8-hd');
+  const [model, setModel] = useState(savedSettings.model || 'speech-2.6-hd');
   const [voices, setVoices] = useState(VOICES);
   const [selectedVoice, setSelectedVoice] = useState(savedSettings.selectedVoice || VOICES[0].id);
   const [speed, setSpeed] = useState(savedSettings.speed ?? 1.0);
@@ -1017,6 +1023,16 @@ const ShadowReader: React.FC<{
     }
   };
 
+  const handleConfirmSaveVoice = () => {
+    if (pendingVoiceData && onSaveVoice) {
+      onSaveVoice(pendingVoiceData.audioUrl, pendingVoiceData.duration, pendingVoiceData.text, voiceNameInput || undefined);
+      setShowSaveModal(false);
+      setPendingVoiceData(null);
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    }
+  };
+
   const handleSaveAll = async () => {
     setSaveStatus('saving');
     
@@ -1035,7 +1051,14 @@ const ShadowReader: React.FC<{
       }
 
       if (onSaveVoice && audio && audioDataUrl) {
-        onSaveVoice(audioDataUrl, audio.duration, segments.map(s => s.text).join('\n'));
+        // Show modal to get name
+        const text = segments.map(s => s.text).join('\n');
+        const words = text.trim().split(/\s+/);
+        const defaultName = words.slice(0, 3).join(' ') + (words.length > 3 ? '...' : '');
+        setPendingVoiceData({ audioUrl: audioDataUrl, duration: audio.duration, text });
+        setVoiceNameInput(defaultName);
+        setShowSaveModal(true);
+        return;
       } else if (onSaveNote) {
         // Fallback to notes if only onSaveNote is provided
         const fullText = segments.map(s => s.text).join('\n');
@@ -1070,6 +1093,40 @@ const ShadowReader: React.FC<{
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
     >
+      {/* Save Voice Modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-neutral-800 rounded-2xl border border-white/10 p-6 w-[90%] max-w-sm shadow-2xl">
+            <h3 className="text-lg font-semibold text-white mb-4">Save Voice</h3>
+            <input
+              type="text"
+              value={voiceNameInput}
+              onChange={(e) => setVoiceNameInput(e.target.value)}
+              placeholder="Voice name"
+              className="w-full px-4 py-3 bg-neutral-900 border border-white/10 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:border-teal-500/50 mb-4"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowSaveModal(false);
+                  setPendingVoiceData(null);
+                }}
+                className="flex-1 px-4 py-3 rounded-xl bg-neutral-700 text-neutral-300 hover:bg-neutral-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSaveVoice}
+                className="flex-1 px-4 py-3 rounded-xl bg-teal-600 text-white hover:bg-teal-500 transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-neutral-950/80 backdrop-blur-md border-b border-white/5">
         <div className="flex items-center gap-4">
@@ -1480,44 +1537,44 @@ const ShadowReader: React.FC<{
                 />
               </div>
               
-              <div className="flex items-center justify-between px-6 pb-4 max-w-md mx-auto w-full">
+              <div className="flex items-center justify-center px-2 pb-4 max-w-2xl mx-auto w-full gap-1">
                 {/* Replay */}
-                <button 
+                <button
                   onClick={handleReplay}
-                  className="p-3 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                  className="p-3 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors flex-shrink-0"
                   title="Replay"
                 >
                   <RotateCcw size={22} />
                 </button>
 
                 {/* Prev */}
-                <button 
+                <button
                   onClick={handlePrevSegment}
-                  className="p-3 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                  className="p-3 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors flex-shrink-0"
                   title="Previous"
                 >
                   <SkipBack size={28} fill="currentColor" />
                 </button>
 
-                {/* Play/Pause */}
-                <button 
-                  onClick={togglePlay} 
-                  className="w-16 h-16 bg-white text-black rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform active:scale-95 mx-2"
+                {/* Play/Pause - Circular and fixed size */}
+                <button
+                  onClick={togglePlay}
+                  className="w-16 h-16 bg-white text-black rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform active:scale-95 flex-shrink-0"
                 >
                   {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
                 </button>
-                
+
                 {/* Next */}
-                <button 
+                <button
                   onClick={handleNextSegment}
-                  className="p-3 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                  className="p-3 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors flex-shrink-0"
                   title="Next"
                 >
                   <SkipForward size={28} fill="currentColor" />
                 </button>
-                
+
                 {/* Translate */}
-                <div className="relative group">
+                <div className="relative group flex-shrink-0">
                   <button
                     onClick={() => setShowLangPopup(!showLangPopup)}
                     className={`p-3 rounded-full transition-colors ${showTranslation ? 'text-teal-400 bg-teal-900/30' : 'text-neutral-400 hover:text-white'}`}
@@ -1528,11 +1585,25 @@ const ShadowReader: React.FC<{
 
                   {/* Language Selector Popup - toggle on click for touch devices, hover on desktop */}
                   <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-bottom-right transition-opacity ${isTouch ? (showLangPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
-                     <button onClick={() => { handleTranslate('zh'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'zh' ? 'bg-teal-600/30' : ''}`}>🇨🇳</button>
-                     <button onClick={() => { handleTranslate('ja'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ja' ? 'bg-teal-600/30' : ''}`}>🇯🇵</button>
-                     <button onClick={() => { handleTranslate('ko'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ko' ? 'bg-teal-600/30' : ''}`}>🇰🇷</button>
+                     <button onClick={() => { if (translationLang === 'zh' && showTranslation) { setShowTranslation(false); } else { handleTranslate('zh'); } setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'zh' ? 'bg-teal-600/30' : ''}`}>🇨🇳</button>
+                     <button onClick={() => { if (translationLang === 'ja' && showTranslation) { setShowTranslation(false); } else { handleTranslate('ja'); } setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ja' ? 'bg-teal-600/30' : ''}`}>🇯🇵</button>
+                     <button onClick={() => { if (translationLang === 'ko' && showTranslation) { setShowTranslation(false); } else { handleTranslate('ko'); } setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ko' ? 'bg-teal-600/30' : ''}`}>🇰🇷</button>
                   </div>
                 </div>
+
+                {/* Speed */}
+                <button
+                  onClick={() => {
+                    const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+                    const currentIndex = speeds.indexOf(speed);
+                    const nextIndex = (currentIndex + 1) % speeds.length;
+                    setSpeed(speeds[nextIndex]);
+                  }}
+                  className="w-12 p-3 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors text-xs font-medium flex-shrink-0"
+                  title="Playback speed"
+                >
+                  {speed}x
+                </button>
               </div>
             </div>
           </div>
@@ -1664,14 +1735,133 @@ const NotesDetail: React.FC<{
   onBack: () => void,
   onSave: (updatedNote: Note) => void,
   onDelete: (id: string) => void,
+  savedVoices: VoiceItem[],
+  onPlayVoice: (voice: VoiceItem) => void,
   isTouch?: boolean
-}> = ({ note, onNavigateToShadow, onBack, onSave, onDelete, isTouch = false }) => {
+}> = ({ note, onNavigateToShadow, onBack, onSave, onDelete, savedVoices, onPlayVoice, isTouch = false }) => {
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(note.rawContent === "");
   const [rawText, setRawText] = useState(note.rawContent);
 
   // Parse content for view mode
   const parsedContent = useMemo(() => parseNoteContent(rawText), [rawText]);
+
+  // Voice Association State
+  const [sentenceVoiceAssociations, setSentenceVoiceAssociations] = useState<Record<string, string[]>>(() =>
+    getStorageItem<Record<string, string[]>>(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, {})
+  );
+  const [openVoiceDropdown, setOpenVoiceDropdown] = useState<string | null>(null);
+  const [openPlayDropdown, setOpenPlayDropdown] = useState<string | null>(null);
+
+  // Detail Page Player State
+  const [detailPlayingVoice, setDetailPlayingVoice] = useState<VoiceItem | null>(null);
+  const [detailIsPlaying, setDetailIsPlaying] = useState(false);
+  const [detailPlaybackSpeed, setDetailPlaybackSpeed] = useState(1);
+  const [detailCurrentTime, setDetailCurrentTime] = useState(0);
+  const [detailDuration, setDetailDuration] = useState(0);
+  const [detailVoiceList, setDetailVoiceList] = useState<VoiceItem[]>([]);
+  const [detailVoiceIndex, setDetailVoiceIndex] = useState(0);
+  const [showVoiceListPopup, setShowVoiceListPopup] = useState(false);
+  const detailAudioRef = React.useRef<HTMLAudioElement | null>(null);
+
+  // Handle playing voice in detail page
+  const handlePlayVoiceInDetail = (voice: VoiceItem, voiceList?: VoiceItem[]) => {
+    if (detailPlayingVoice?.id === voice.id) {
+      // Toggle play/pause
+      if (detailIsPlaying) {
+        detailAudioRef.current?.pause();
+        setDetailIsPlaying(false);
+      } else {
+        detailAudioRef.current?.play();
+        setDetailIsPlaying(true);
+      }
+    } else {
+      // New voice
+      if (detailAudioRef.current) {
+        detailAudioRef.current.src = voice.audioUrl;
+        detailAudioRef.current.play();
+        setDetailPlayingVoice(voice);
+        setDetailIsPlaying(true);
+        if (voiceList && voiceList.length > 0) {
+          setDetailVoiceList(voiceList);
+          const idx = voiceList.findIndex(v => v.id === voice.id);
+          setDetailVoiceIndex(idx >= 0 ? idx : 0);
+        }
+      }
+    }
+  };
+
+  // Handle audio events
+  React.useEffect(() => {
+    const audio = detailAudioRef.current;
+    if (!audio) return;
+    const handleEnded = () => {
+      setDetailIsPlaying(false);
+      setDetailPlayingVoice(null);
+      setDetailCurrentTime(0);
+    };
+    const handleTimeUpdate = () => {
+      setDetailCurrentTime(audio.currentTime);
+    };
+    const handleLoadedMetadata = () => {
+      setDetailDuration(audio.duration);
+    };
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    return () => {
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+    };
+  }, []);
+
+  // Update playback speed when changed
+  React.useEffect(() => {
+    if (detailAudioRef.current) {
+      detailAudioRef.current.playbackRate = detailPlaybackSpeed;
+    }
+  }, [detailPlaybackSpeed]);
+
+  // Persist associations to localStorage
+  useEffect(() => {
+    setStorageItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, sentenceVoiceAssociations);
+  }, [sentenceVoiceAssociations]);
+
+  // Get unique key for a sentence (combines note id + section + index)
+  const getSentenceKey = (section: string, index: number, text: string) => {
+    return `${note.id}-${section}-${index}-${text.slice(0, 20)}`;
+  };
+
+  // Get associated voices for a sentence
+  const getAssociatedVoices = (sentenceKey: string): VoiceItem[] => {
+    const voiceIds = sentenceVoiceAssociations[sentenceKey] || [];
+    return voiceIds.map(id => savedVoices.find(v => v.id === id)).filter(Boolean) as VoiceItem[];
+  };
+
+  // Associate a voice with a sentence
+  const associateVoice = (sentenceKey: string, voiceId: string) => {
+    setSentenceVoiceAssociations(prev => {
+      const current = prev[sentenceKey] || [];
+      if (current.includes(voiceId)) return prev; // Already associated
+      return {
+        ...prev,
+        [sentenceKey]: [...current, voiceId]
+      };
+    });
+    setOpenVoiceDropdown(null);
+  };
+
+  // Remove voice association
+  const removeVoiceAssociation = (sentenceKey: string, voiceId: string) => {
+    setSentenceVoiceAssociations(prev => {
+      const current = prev[sentenceKey] || [];
+      return {
+        ...prev,
+        [sentenceKey]: current.filter(id => id !== voiceId)
+      };
+    });
+  };
 
   const toggleAccordion = (id: string) => {
     setActiveAccordion(activeAccordion === id ? null : id);
@@ -1725,11 +1915,15 @@ const NotesDetail: React.FC<{
   };
 
   return (
-    <motion.div 
+    <motion.div
       className="min-h-screen bg-[#09090b] text-[#e4e4e7] font-sans pb-24"
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
+      onClick={() => {
+        setOpenVoiceDropdown(null);
+        setOpenPlayDropdown(null);
+      }}
     >
       {/* 1. Header */}
       <header className="sticky top-0 z-20 bg-[#09090b]/80 backdrop-blur-md border-b border-white/5 px-4 py-3 flex items-center gap-4">
@@ -1840,26 +2034,60 @@ const NotesDetail: React.FC<{
                                 <p className="font-mono text-xs text-teal-500/80 uppercase tracking-wider flex items-center gap-1">
                                   <Sparkles size={10} /> Better
                                 </p>
-                                <button 
-                                  onClick={() => onNavigateToShadow(msg.correction!)}
-                                  className={`${isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity p-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400`}
-                                  title="Shadow this sentence"
-                                >
-                                  <Headphones size={14} />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  <VoiceDropdown
+                                    sentenceKey={getSentenceKey('chat-correction', index, msg.correction)}
+                                    associatedVoices={getAssociatedVoices(getSentenceKey('chat-correction', index, msg.correction))}
+                                    savedVoices={savedVoices}
+                                    isOpen={openVoiceDropdown === getSentenceKey('chat-correction', index, msg.correction)}
+                                    onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === getSentenceKey('chat-correction', index, msg.correction) ? null : getSentenceKey('chat-correction', index, msg.correction))}
+                                    isPlayDropdownOpen={openPlayDropdown === getSentenceKey('chat-correction', index, msg.correction)}
+                                    onTogglePlayDropdown={() => setOpenPlayDropdown(openPlayDropdown === getSentenceKey('chat-correction', index, msg.correction) ? null : getSentenceKey('chat-correction', index, msg.correction))}
+                                    onAssociate={(voiceId) => associateVoice(getSentenceKey('chat-correction', index, msg.correction), voiceId)}
+                                    onRemove={(voiceId) => removeVoiceAssociation(getSentenceKey('chat-correction', index, msg.correction), voiceId)}
+                                    onPlay={handlePlayVoiceInDetail}
+                                    isTouch={isTouch}
+                                    closeOtherDropdown={() => setOpenPlayDropdown(null)}
+                                    closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                                  />
+                                  <button
+                                    onClick={() => onNavigateToShadow(msg.correction!)}
+                                    className="opacity-100 transition-opacity p-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400"
+                                    title="Shadow this sentence"
+                                  >
+                                    <Headphones size={14} />
+                                  </button>
+                                </div>
                               </div>
                               <p className="text-teal-100/90 font-medium">{msg.correction}</p>
                             </div>
                           ) : (
                             <div className="flex items-start justify-between gap-2">
                               <p>{msg.text}</p>
-                              <button 
-                                onClick={() => onNavigateToShadow(msg.text)}
-                                className={`${isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity p-1 -mr-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400 shrink-0`}
-                                title="Shadow this sentence"
-                              >
-                                <Headphones size={14} />
-                              </button>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <VoiceDropdown
+                                  sentenceKey={getSentenceKey('chat', index, msg.text)}
+                                  associatedVoices={getAssociatedVoices(getSentenceKey('chat', index, msg.text))}
+                                  savedVoices={savedVoices}
+                                  isOpen={openVoiceDropdown === getSentenceKey('chat', index, msg.text)}
+                                  onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === getSentenceKey('chat', index, msg.text) ? null : getSentenceKey('chat', index, msg.text))}
+                                  isPlayDropdownOpen={openPlayDropdown === getSentenceKey('chat', index, msg.text)}
+                                  onTogglePlayDropdown={() => setOpenPlayDropdown(openPlayDropdown === getSentenceKey('chat', index, msg.text) ? null : getSentenceKey('chat', index, msg.text))}
+                                  onAssociate={(voiceId) => associateVoice(getSentenceKey('chat', index, msg.text), voiceId)}
+                                  onRemove={(voiceId) => removeVoiceAssociation(getSentenceKey('chat', index, msg.text), voiceId)}
+                                  onPlay={handlePlayVoiceInDetail}
+                                  isTouch={isTouch}
+                                  closeOtherDropdown={() => setOpenPlayDropdown(null)}
+                                  closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                                />
+                                <button
+                                  onClick={() => onNavigateToShadow(msg.text)}
+                                  className="opacity-100 transition-opacity p-1 -mr-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400 shrink-0"
+                                  title="Shadow this sentence"
+                                >
+                                  <Headphones size={14} />
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1881,7 +2109,7 @@ const NotesDetail: React.FC<{
 
               <div className="grid gap-3">
                 {parsedContent.upgrades.map((item: any, idx: number) => (
-                <div key={idx} className="bg-[#18181b] border border-white/5 rounded-xl p-4 relative overflow-hidden group">
+                <div key={idx} className="bg-[#18181b] border border-white/5 rounded-xl p-4 relative overflow-visible group">
                   <div className="absolute top-0 left-0 w-1 h-full bg-neutral-800 group-hover:bg-teal-900/50 transition-colors" />
                   <div className="space-y-3 pl-2">
                     <div className="flex items-start gap-3 opacity-60">
@@ -1897,13 +2125,30 @@ const NotesDetail: React.FC<{
                           <p className="text-xs text-neutral-500 mt-1">{item.nuance}</p>
                         </div>
                       </div>
-                      <button 
-                        onClick={() => onNavigateToShadow(item.improved)}
-                        className={`${isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity p-1.5 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400`}
-                        title="Shadow this sentence"
-                      >
-                        <Headphones size={16} />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <VoiceDropdown
+                          sentenceKey={getSentenceKey('upgrade', idx, item.improved)}
+                          associatedVoices={getAssociatedVoices(getSentenceKey('upgrade', idx, item.improved))}
+                          savedVoices={savedVoices}
+                          isOpen={openVoiceDropdown === getSentenceKey('upgrade', idx, item.improved)}
+                          onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === getSentenceKey('upgrade', idx, item.improved) ? null : getSentenceKey('upgrade', idx, item.improved))}
+                          isPlayDropdownOpen={openPlayDropdown === getSentenceKey('upgrade', idx, item.improved)}
+                          onTogglePlayDropdown={() => setOpenPlayDropdown(openPlayDropdown === getSentenceKey('upgrade', idx, item.improved) ? null : getSentenceKey('upgrade', idx, item.improved))}
+                          onAssociate={(voiceId) => associateVoice(getSentenceKey('upgrade', idx, item.improved), voiceId)}
+                          onRemove={(voiceId) => removeVoiceAssociation(getSentenceKey('upgrade', idx, item.improved), voiceId)}
+                          onPlay={handlePlayVoiceInDetail}
+                          isTouch={isTouch}
+                          closeOtherDropdown={() => setOpenPlayDropdown(null)}
+                          closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                        />
+                        <button
+                          onClick={() => onNavigateToShadow(item.improved)}
+                          className={`${isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity p-1.5 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400`}
+                          title="Shadow this sentence"
+                        >
+                          <Headphones size={16} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1922,7 +2167,7 @@ const NotesDetail: React.FC<{
 
               <div className="space-y-2">
                 {parsedContent.patterns.map((item: any) => (
-                <div key={item.id} className="bg-[#18181b] border border-white/5 rounded-xl overflow-hidden">
+                <div key={item.id} className="bg-[#18181b] border border-white/5 rounded-xl overflow-visible relative">
                   <button 
                     onClick={() => toggleAccordion(item.id)}
                     className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors"
@@ -1951,13 +2196,30 @@ const NotesDetail: React.FC<{
                                   <p className="text-sm text-neutral-300 font-mono pl-3 border-l-2 border-teal-900/50 italic">
                                     "{ex}"
                                   </p>
-                                  <button 
-                                    onClick={() => onNavigateToShadow(ex)}
-                                    className="p-1.5 hover:bg-white/10 rounded-full text-neutral-500 hover:text-teal-400 shrink-0"
-                                    title="Shadow this sentence"
-                                  >
-                                    <Headphones size={14} />
-                                  </button>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <VoiceDropdown
+                                      sentenceKey={getSentenceKey(`pattern-${item.id}`, i, ex)}
+                                      associatedVoices={getAssociatedVoices(getSentenceKey(`pattern-${item.id}`, i, ex))}
+                                      savedVoices={savedVoices}
+                                      isOpen={openVoiceDropdown === getSentenceKey(`pattern-${item.id}`, i, ex)}
+                                      onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === getSentenceKey(`pattern-${item.id}`, i, ex) ? null : getSentenceKey(`pattern-${item.id}`, i, ex))}
+                                      isPlayDropdownOpen={openPlayDropdown === getSentenceKey(`pattern-${item.id}`, i, ex)}
+                                      onTogglePlayDropdown={() => setOpenPlayDropdown(openPlayDropdown === getSentenceKey(`pattern-${item.id}`, i, ex) ? null : getSentenceKey(`pattern-${item.id}`, i, ex))}
+                                      onAssociate={(voiceId) => associateVoice(getSentenceKey(`pattern-${item.id}`, i, ex), voiceId)}
+                                      onRemove={(voiceId) => removeVoiceAssociation(getSentenceKey(`pattern-${item.id}`, i, ex), voiceId)}
+                                      onPlay={handlePlayVoiceInDetail}
+                                      isTouch={isTouch}
+                                      closeOtherDropdown={() => setOpenPlayDropdown(null)}
+                                      closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                                    />
+                                    <button
+                                      onClick={() => onNavigateToShadow(ex)}
+                                      className="p-1.5 hover:bg-white/10 rounded-full text-neutral-500 hover:text-teal-400 shrink-0"
+                                      title="Shadow this sentence"
+                                    >
+                                      <Headphones size={14} />
+                                    </button>
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -1982,7 +2244,7 @@ const NotesDetail: React.FC<{
 
               <div className="space-y-4">
                 {parsedContent.shadowing.map((item: any, idx: number) => (
-                  <div key={idx} className="bg-gradient-to-b from-[#18181b] to-[#131315] border border-white/5 rounded-2xl p-5 relative overflow-hidden">
+                  <div key={idx} className="bg-gradient-to-b from-[#18181b] to-[#131315] border border-white/5 rounded-2xl p-5 relative overflow-visible">
                     {/* Decorative background noise/texture could go here */}
                     <div className="absolute top-0 right-0 p-3 opacity-10">
                       <Quote size={40} />
@@ -2000,14 +2262,31 @@ const NotesDetail: React.FC<{
                         </div>
                       </div>
 
-                      <button 
-                        onClick={() => onNavigateToShadow(item.text)}
-                        className="w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-white/5 rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all active:scale-[0.98] group"
-                      >
-                        <Headphones size={18} className="text-teal-500/80 group-hover:scale-110 transition-transform" />
-                        <span className="text-sm font-medium">Send to Shadow Reader</span>
-                        <ArrowRight size={14} className="opacity-50 group-hover:translate-x-1 transition-transform" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <VoiceDropdown
+                          sentenceKey={getSentenceKey('shadowing', idx, item.text)}
+                          associatedVoices={getAssociatedVoices(getSentenceKey('shadowing', idx, item.text))}
+                          savedVoices={savedVoices}
+                          isOpen={openVoiceDropdown === getSentenceKey('shadowing', idx, item.text)}
+                          onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === getSentenceKey('shadowing', idx, item.text) ? null : getSentenceKey('shadowing', idx, item.text))}
+                          isPlayDropdownOpen={openPlayDropdown === getSentenceKey('shadowing', idx, item.text)}
+                          onTogglePlayDropdown={() => setOpenPlayDropdown(openPlayDropdown === getSentenceKey('shadowing', idx, item.text) ? null : getSentenceKey('shadowing', idx, item.text))}
+                          onAssociate={(voiceId) => associateVoice(getSentenceKey('shadowing', idx, item.text), voiceId)}
+                          onRemove={(voiceId) => removeVoiceAssociation(getSentenceKey('shadowing', idx, item.text), voiceId)}
+                          onPlay={handlePlayVoiceInDetail}
+                          isTouch={isTouch}
+                          closeOtherDropdown={() => setOpenPlayDropdown(null)}
+                          closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                        />
+                        <button
+                          onClick={() => onNavigateToShadow(item.text)}
+                          className="flex-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-white/5 rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all active:scale-[0.98] group"
+                        >
+                          <Headphones size={18} className="text-teal-500/80 group-hover:scale-110 transition-transform" />
+                          <span className="text-sm font-medium">Send to Shadow Reader</span>
+                          <ArrowRight size={14} className="opacity-50 group-hover:translate-x-1 transition-transform" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -2041,13 +2320,30 @@ const NotesDetail: React.FC<{
                         }`}>
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <p className="text-[10px] opacity-50 uppercase tracking-wider">{s.name || (s.type === 'user' ? 'You' : 'Friend/AI')}</p>
-                            <button
-                              onClick={() => onNavigateToShadow(s.text)}
-                              className="p-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400 transition-colors"
-                              title="Play voice"
-                            >
-                              <Headphones size={12} />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <VoiceDropdown
+                                sentenceKey={getSentenceKey('scenario', i, s.text)}
+                                associatedVoices={getAssociatedVoices(getSentenceKey('scenario', i, s.text))}
+                                savedVoices={savedVoices}
+                                isOpen={openVoiceDropdown === getSentenceKey('scenario', i, s.text)}
+                                onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === getSentenceKey('scenario', i, s.text) ? null : getSentenceKey('scenario', i, s.text))}
+                                isPlayDropdownOpen={openPlayDropdown === getSentenceKey('scenario', i, s.text)}
+                                onTogglePlayDropdown={() => setOpenPlayDropdown(openPlayDropdown === getSentenceKey('scenario', i, s.text) ? null : getSentenceKey('scenario', i, s.text))}
+                                onAssociate={(voiceId) => associateVoice(getSentenceKey('scenario', i, s.text), voiceId)}
+                                onRemove={(voiceId) => removeVoiceAssociation(getSentenceKey('scenario', i, s.text), voiceId)}
+                                onPlay={handlePlayVoiceInDetail}
+                                isTouch={isTouch}
+                                closeOtherDropdown={() => setOpenPlayDropdown(null)}
+                                closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                              />
+                              <button
+                                onClick={() => onNavigateToShadow(s.text)}
+                                className="p-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400 transition-colors"
+                                title="Play voice"
+                              >
+                                <Headphones size={12} />
+                              </button>
+                            </div>
                           </div>
                           <p>{s.text}</p>
                         </div>
@@ -2061,7 +2357,311 @@ const NotesDetail: React.FC<{
 
         </main>
       )}
+
+      {/* Hidden Audio Element */}
+      <audio ref={detailAudioRef} />
+
+      {/* Detail Page Mini Player */}
+      {detailPlayingVoice && (
+        <motion.div
+          initial={{ y: 100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 100, opacity: 0 }}
+          className="fixed bottom-24 left-0 right-0 z-50 px-4"
+        >
+          {/* Slide down to close handle */}
+          <div className="max-w-3xl mx-auto mb-2 flex justify-center">
+            <button
+              onClick={() => {
+                detailAudioRef.current?.pause();
+                setDetailPlayingVoice(null);
+              }}
+              className="p-2 rounded-full bg-neutral-800/80 hover:bg-neutral-700 text-neutral-400 hover:text-white transition-colors"
+              title="Close player"
+            >
+              <ChevronDown size={20} />
+            </button>
+          </div>
+          <div className="max-w-3xl mx-auto bg-neutral-900/90 backdrop-blur-xl border border-white/10 rounded-3xl p-3 shadow-2xl">
+            {/* Progress Bar */}
+            <div className="mb-2">
+              <input
+                type="range"
+                min={0}
+                max={detailDuration || 100}
+                value={detailCurrentTime}
+                onChange={(e) => {
+                  const time = parseFloat(e.target.value);
+                  detailAudioRef.current!.currentTime = time;
+                  setDetailCurrentTime(time);
+                  detailAudioRef.current!.play();
+                  setDetailIsPlaying(true);
+                }}
+                className="w-full h-1 bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-teal-500"
+              />
+              <div className="flex justify-between text-xs text-neutral-500 mt-1">
+                <span>{Math.floor(detailCurrentTime)}s</span>
+                <span>{Math.floor(detailDuration)}s</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 min-w-0 flex items-center gap-2">
+                <p className="text-sm font-medium text-white truncate">{detailPlayingVoice.title}</p>
+                {/* Hamburger menu for voice list */}
+                {detailVoiceList.length > 1 && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowVoiceListPopup(!showVoiceListPopup)}
+                      className="p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                      title="Voice list"
+                    >
+                      <Menu size={14} />
+                    </button>
+                    {showVoiceListPopup && (
+                      <div className="absolute bottom-full left-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-1 shadow-xl z-[60] min-w-[160px] max-w-[200px] max-w-[calc(100vw-40px)]">
+                        {detailVoiceList.map((voice, idx) => (
+                          <button
+                            key={voice.id}
+                            onClick={() => {
+                              handlePlayVoiceInDetail(voice, detailVoiceList);
+                              setDetailVoiceIndex(idx);
+                              setShowVoiceListPopup(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm rounded-lg truncate block max-w-full ${idx === detailVoiceIndex ? 'bg-teal-500/20 text-teal-400' : 'text-neutral-200 hover:bg-white/5'}`}
+                          >
+                            {voice.title}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-0.5">
+                {/* Seek backward */}
+                <button
+                  onClick={() => {
+                    const newTime = Math.max(0, detailAudioRef.current!.currentTime - 5);
+                    detailAudioRef.current!.currentTime = newTime;
+                    setDetailCurrentTime(newTime);
+                  }}
+                  className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                  title="Back 5s"
+                >
+                  <SkipBack size={14} />
+                </button>
+
+                {/* Restart */}
+                <button
+                  onClick={() => {
+                    detailAudioRef.current!.currentTime = 0;
+                    setDetailCurrentTime(0);
+                  }}
+                  className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                  title="Restart"
+                >
+                  <RotateCcw size={14} />
+                </button>
+
+                {/* Play/Pause - Circular */}
+                <button
+                  onClick={() => handlePlayVoiceInDetail(detailPlayingVoice, detailVoiceList)}
+                  className="w-9 h-9 rounded-full bg-teal-500 hover:bg-teal-400 text-neutral-900 transition-colors flex items-center justify-center flex-shrink-0"
+                >
+                  {detailIsPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
+                </button>
+
+                {/* Speed */}
+                <button
+                  onClick={() => {
+                    const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+                    const currentIndex = speeds.indexOf(detailPlaybackSpeed);
+                    const nextIndex = (currentIndex + 1) % speeds.length;
+                    setDetailPlaybackSpeed(speeds[nextIndex]);
+                  }}
+                  className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors text-xs font-medium min-w-[28px] flex-shrink-0"
+                  title="Playback speed"
+                >
+                  {detailPlaybackSpeed}x
+                </button>
+
+                {/* Seek forward */}
+                <button
+                  onClick={() => {
+                    const newTime = Math.min(detailDuration, detailAudioRef.current!.currentTime + 5);
+                    detailAudioRef.current!.currentTime = newTime;
+                    setDetailCurrentTime(newTime);
+                  }}
+                  className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                  title="Forward 5s"
+                >
+                  <SkipForward size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
     </motion.div>
+  );
+};
+
+// ==========================================
+// COMPONENT: VOICE DROPDOWN (for sentence voice association)
+// ==========================================
+
+interface VoiceDropdownProps {
+  sentenceKey: string;
+  associatedVoices: VoiceItem[];
+  savedVoices: VoiceItem[];
+  isOpen: boolean;
+  onToggle: () => void;
+  onTogglePlayDropdown: () => void;
+  isPlayDropdownOpen: boolean;
+  onAssociate: (voiceId: string) => void;
+  onRemove: (voiceId: string) => void;
+  onPlay: (voice: VoiceItem) => void;
+  onAddVoice?: () => void;
+  isTouch?: boolean;
+  closeOtherDropdown?: () => void;
+  closeMainDropdown?: () => void;
+}
+
+const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
+  sentenceKey,
+  associatedVoices,
+  savedVoices,
+  isOpen,
+  onToggle,
+  onTogglePlayDropdown,
+  isPlayDropdownOpen,
+  onAssociate,
+  onRemove,
+  onPlay,
+  onAddVoice,
+  isTouch = false,
+  closeOtherDropdown,
+  closeMainDropdown
+}) => {
+  const hasAssociated = associatedVoices.length > 0;
+  const hasMultiple = associatedVoices.length > 1;
+
+  return (
+    <div className="relative flex items-center gap-1 overflow-visible" onClick={(e) => e.stopPropagation()}>
+      {/* Always show Plus to add association */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          if (closeOtherDropdown) closeOtherDropdown();
+          onToggle();
+        }}
+        className="opacity-100 transition-opacity p-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400"
+        title="Associate voice"
+      >
+        <Plus size={14} />
+      </button>
+
+      {/* Show speaker only when has associated voices - click shows play dropdown if multiple */}
+      {hasAssociated && (
+        <div className="relative">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (hasMultiple) {
+                if (closeMainDropdown) closeMainDropdown();
+                onTogglePlayDropdown();
+              } else {
+                onPlay(associatedVoices[0], associatedVoices);
+              }
+            }}
+            className="opacity-100 transition-opacity p-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400"
+            title={hasMultiple ? "Select voice to play" : "Play associated voice"}
+          >
+            <Volume2 size={14} />
+          </button>
+
+          {/* Play dropdown - shows when multiple voices and user clicks speaker */}
+          {isPlayDropdownOpen && hasMultiple && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:-translate-x-0 top-full mt-1 bg-neutral-800 rounded-xl border border-white/10 p-1 shadow-xl z-[60] w-[120px] sm:w-[150px] max-w-[calc(100vw-20px)]">
+              {associatedVoices.map(voice => (
+                <button
+                  key={voice.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPlay(voice, associatedVoices);
+                    onTogglePlayDropdown();
+                  }}
+                  className="w-full text-left px-2 py-1.5 text-xs text-neutral-200 hover:bg-white/5 rounded truncate block"
+                  style={{ width: '100%' }}
+                >
+                  {voice.title}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isOpen && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:-translate-x-0 top-full mt-1 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl z-50 w-[180px] sm:w-[200px] max-w-[calc(100vw-20px)]">
+          {hasAssociated ? (
+            <>
+              {associatedVoices.map(voice => (
+                <div
+                  key={voice.id}
+                  className="flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-white/5 rounded-lg group"
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPlay(voice, associatedVoices);
+                    }}
+                    className="flex-1 text-left text-xs text-neutral-200 truncate"
+                    style={{ maxWidth: '120px' }}
+                  >
+                    {voice.title}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemove(voice.id);
+                    }}
+                    className="p-1 rounded-full text-neutral-500 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+              <div className="border-t border-white/10 my-1" />
+            </>
+          ) : null}
+
+          {/* Show saved voices to associate */}
+          {savedVoices.length > 0 ? (
+            savedVoices.filter(v => !hasAssociated || !associatedVoices.some(av => av.id === v.id)).map(voice => (
+              <button
+                key={voice.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAssociate(voice.id);
+                }}
+                className="w-full text-left px-2 py-1.5 text-sm text-neutral-400 hover:text-teal-400 hover:bg-white/5 rounded-lg flex items-center gap-2"
+              >
+                <Plus size={12} />
+                <span className="flex-1 truncate" style={{ maxWidth: '120px' }}>{voice.title}</span>
+              </button>
+            ))
+          ) : (
+            <p className="text-xs text-neutral-500 px-2 py-1">No saved voices</p>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -2073,8 +2673,11 @@ const VoiceCollection: React.FC<{
   voices: VoiceItem[],
   onDeleteVoice: (id: string) => void,
   onPlayVoice: (voice: VoiceItem) => void,
+  onUpdateVoiceName?: (id: string, newName: string) => void,
   isTouch?: boolean
-}> = ({ voices, onDeleteVoice, onPlayVoice, isTouch = false }) => {
+}> = ({ voices, onDeleteVoice, onPlayVoice, onUpdateVoiceName, isTouch = false }) => {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
   return (
     <motion.div 
       className="min-h-screen bg-[#09090b] text-[#e4e4e7] p-4 pb-24"
@@ -2144,7 +2747,43 @@ const VoiceCollection: React.FC<{
                   </div>
                 </div>
 
-                <h3 className="text-lg font-medium text-neutral-200 mb-2 line-clamp-2">{voice.title}</h3>
+                {editingId === voice.id ? (
+                  <div className="flex items-center gap-2 mb-2" onClick={e => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="flex-1 bg-neutral-800 text-white text-sm px-2 py-1 rounded border border-white/10 focus:border-teal-500/50 outline-none"
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => {
+                        onUpdateVoiceName?.(voice.id, editName);
+                        setEditingId(null);
+                      }}
+                      className="p-1 text-teal-400 hover:text-teal-300"
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="p-1 text-neutral-500 hover:text-neutral-300"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <h3
+                    className="text-lg font-medium text-neutral-200 mb-2 line-clamp-2 cursor-pointer hover:text-teal-400"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingId(voice.id);
+                      setEditName(voice.title);
+                    }}
+                  >
+                    {voice.title}
+                  </h3>
+                )}
 
                 <div className="flex items-center justify-between mt-4">
                   <div className="flex items-center gap-2 text-neutral-400 group-hover:text-teal-400 transition-colors">
@@ -2318,10 +2957,15 @@ Shadowing Practice
     setNotes([newNote, ...notes]);
   };
 
-  const handleSaveVoice = (audioUrl: string, duration: number, text: string) => {
+  const handleSaveVoice = (audioUrl: string, duration: number, text: string, customName?: string) => {
+    // Default name: first 3 words of text
+    const words = text.trim().split(/\s+/);
+    const defaultName = words.slice(0, 3).join(' ') + (words.length > 3 ? '...' : '');
+    const title = customName || defaultName;
+
     const newVoice: VoiceItem = {
       id: `voice-${Date.now()}`,
-      title: text.slice(0, 30) + (text.length > 30 ? '...' : ''),
+      title: title,
       date: new Date().toLocaleDateString(),
       timestamp: Date.now(),
       audioUrl,
@@ -2329,6 +2973,10 @@ Shadowing Practice
       text
     };
     setSavedVoices([newVoice, ...savedVoices]);
+  };
+
+  const handleUpdateVoiceName = (id: string, newName: string) => {
+    setSavedVoices(savedVoices.map(v => v.id === id ? { ...v, title: newName } : v));
   };
 
   const handleDeleteVoice = (id: string) => {
@@ -2366,6 +3014,8 @@ Shadowing Practice
                 onBack={() => setNotesView('list')}
                 onSave={handleUpdateNote}
                 onDelete={handleDeleteNote}
+                savedVoices={savedVoices}
+                onPlayVoice={handlePlayVoice}
                 isTouch={isTouch}
               />
             ) : null}
@@ -2391,6 +3041,7 @@ Shadowing Practice
             voices={savedVoices}
             onDeleteVoice={handleDeleteVoice}
             onPlayVoice={handlePlayVoice}
+            onUpdateVoiceName={handleUpdateVoiceName}
             isTouch={isTouch}
           />
         );
