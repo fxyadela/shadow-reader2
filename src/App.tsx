@@ -756,7 +756,10 @@ const ShadowReader: React.FC<{
     }
   };
 
-  const handleToSettings = () => setMode('settings');
+  const handleToSettings = () => {
+    if (!text.trim()) return;
+    setMode('settings');
+  };
   
   const handleGenerate = async () => {
     if (!text.trim()) return;
@@ -1119,15 +1122,26 @@ const ShadowReader: React.FC<{
               exit={{ opacity: 0 }}
               className="space-y-6"
             >
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                className="w-full h-64 bg-neutral-900/50 text-neutral-200 p-6 rounded-3xl border border-white/5 focus:border-teal-500/50 outline-none resize-none text-lg leading-relaxed"
-                placeholder="Paste text..."
-              />
-              <button 
+              <div className="relative">
+                <textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  className="w-full h-64 bg-neutral-900/50 text-neutral-200 p-6 pr-12 rounded-3xl border border-white/5 focus:border-teal-500/50 outline-none resize-none text-lg leading-relaxed"
+                  placeholder="Paste text..."
+                />
+                {text && (
+                  <button
+                    onClick={() => setText('')}
+                    className="absolute top-4 right-4 p-1 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-white transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
+              <button
                 onClick={handleToSettings}
-                className="w-full rounded-2xl bg-teal-600 p-4 font-semibold text-white hover:bg-teal-500 transition-colors flex items-center justify-center gap-2"
+                disabled={!text.trim()}
+                className="w-full rounded-2xl bg-teal-600 p-4 font-semibold text-white hover:bg-teal-500 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next <ArrowRight size={20} />
               </button>
