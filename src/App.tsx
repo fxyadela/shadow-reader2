@@ -369,11 +369,19 @@ const parseNoteContent = (raw: string) => {
         });
       }
     } else if (currentSection === 'patterns') {
-      // Support BOTH markdown format (with **) and mobile format (without **)
-      // Markdown: 1. **xxx**
-      // Mobile: 1. xxx
-      if (trimmed.match(/^\d+\.\s*\*\*(.*)\*\*$/) || (trimmed.match(/^\d+\.\s*(.+)$/) && !trimmed.includes('句型解释') && !trimmed.includes('替换例句'))) {
-        const patternText = trimmed.replace(/^\d+\.\s*\*\*(.*)\*\*$/, '$1').replace(/^\d+\.\s*/, '').trim();
+      // Check for examples FIRST (so they don't get matched as patterns)
+      if (currentPattern && trimmed.includes('替换例句')) {
+        // Mobile format: ◦ 替换例句1：xxx
+        const exMatch = trimmed.match(/^◦\s*替换例句\d*[：:]\s*(.+)$/);
+        if (exMatch) {
+          currentPattern.examples.push(exMatch[1].trim());
+        }
+      } else if (currentPattern && trimmed.includes('句型解释')) {
+        // Mobile format: ◦ 句型解释：xxx
+        currentPattern.framework = trimmed.replace(/^◦\s*句型解释[：:]\s*/, '').trim();
+      } else if (trimmed.match(/^\d+\.\s*(.+)$/)) {
+        // Pattern title: 1. xxx
+        const patternText = trimmed.replace(/^\d+\.\s*/, '').trim();
         currentPattern = {
           id: `p-${i}`,
           pattern: patternText,
@@ -381,33 +389,26 @@ const parseNoteContent = (raw: string) => {
           examples: []
         };
         sections.patterns.push(currentPattern);
-      } else if (currentPattern && trimmed.includes('句型解释')) {
-        // Support both: - **句型框架**： and ◦ 句型解释：
-        currentPattern.framework = trimmed.replace(/^[-◦]\s*\*\*?句型(框架|解释)\*\*?[：:]\s*/, '').trim();
-      } else if (currentPattern && trimmed.includes('替换例句')) {
-        // Support both: - **替换例句**： and ◦ 替换例句1：
-        const exMatch = trimmed.match(/[-◦]\s*\*\*?替换例句\d*\*\*?[：:]\s*(.+)$/);
-        if (exMatch) {
-          currentPattern.examples.push(exMatch[1].trim());
-        }
       }
     } else if (currentSection === 'shadowing') {
-      // Support BOTH markdown format (with **) and mobile format (without **)
-      // Markdown: 1. **"xxx"**
-      // Mobile: 1. "xxx"
-      let match = trimmed.match(/^\d+\.\s*\*\*(.*)\*\*$/);
-      if (!match) {
-        match = trimmed.match(/^\d+\.\s*"(.*)"$/);
-      }
-      if (match) {
-        sections.shadowing.push({ text: match[1].trim(), stress: '', linking: '' });
-      } else if (sections.shadowing.length > 0) {
+      // Check for stress/linking FIRST (so they don't get matched as new items)
+      if (sections.shadowing.length > 0 && trimmed.includes('重读')) {
         const lastShadow = sections.shadowing[sections.shadowing.length - 1];
-        // Support both: - **重读**： and ◦ 重读：
-        if (trimmed.includes('重读')) {
-          lastShadow.stress = trimmed.replace(/^[-◦]\s*\*\*?重读\*\*?[：:]\s*/, '').trim();
-        } else if (trimmed.includes('连读')) {
-          lastShadow.linking = trimmed.replace(/^[-◦]\s*\*\*?连读\*\*?[：:]\s*/, '').trim();
+        lastShadow.stress = trimmed.replace(/^◦\s*重读[：:]\s*/, '').trim();
+      } else if (sections.shadowing.length > 0 && trimmed.includes('连读')) {
+        const lastShadow = sections.shadowing[sections.shadowing.length - 1];
+        lastShadow.linking = trimmed.replace(/^◦\s*连读[：:]\s*/, '').trim();
+      } else if (trimmed.match(/^\d+\.\s*"(.*)"$/)) {
+        // Mobile format: 1. "xxx"
+        const match = trimmed.match(/^\d+\.\s*"(.*)"$/);
+        if (match) {
+          sections.shadowing.push({ text: match[1].trim(), stress: '', linking: '' });
+        }
+      } else if (trimmed.match(/^\d+\.\s*\*\*(.*)\*\*$/)) {
+        // Markdown format: 1. **xxx**
+        const match = trimmed.match(/^\d+\.\s*\*\*(.*)\*\*$/);
+        if (match) {
+          sections.shadowing.push({ text: match[1].trim(), stress: '', linking: '' });
         }
       }
     } else if (currentSection === 'scenario') {
