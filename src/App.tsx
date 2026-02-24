@@ -723,8 +723,9 @@ const ShadowReader: React.FC<{
 
   // Reset itemRefs when segments change (e.g., after editing)
   useEffect(() => {
-    itemRefs.current = itemRefs.current.slice(0, segments.length);
-  }, [segments.length]);
+    // Reset refs when segments change to ensure scroll works properly
+    itemRefs.current = Array(segments.length).fill(null);
+  }, [segments]);
 
   // Auto-start if text is passed
   useEffect(() => {
@@ -1238,22 +1239,28 @@ const ShadowReader: React.FC<{
                 onClick={() => {
                   // Update segments with new text
                   const newSegments = editedSegments.map((seg, idx) => {
-                    // Keep original timing
+                    // Keep original timing (use startTime/endTime, not start/end)
                     const original = segments[idx];
                     return {
                       ...seg,
-                      start: original?.start ?? idx * 2,
-                      end: original?.end ?? (idx + 1) * 2
+                      startTime: original?.startTime ?? idx * 2,
+                      endTime: original?.endTime ?? (idx + 1) * 2
                     };
                   });
                   // Force re-render with new segments
                   setSegments(newSegments);
                   // Also update text state so edits persist when going back to edit mode
                   setText(editedSegments.map(s => s.text).join('\n'));
+                  // Reset itemRefs to ensure scroll works after editing
+                  itemRefs.current = [];
                   // Reset segment index if out of bounds
                   if (currentSegmentIndex >= newSegments.length) {
                     setCurrentSegmentIndex(Math.max(0, newSegments.length - 1));
                   }
+                  // Trigger scroll after a small delay to let DOM update
+                  setTimeout(() => {
+                    setCurrentSegmentIndex(0);
+                  }, 100);
                   setShowSegmentEditor(false);
                 }}
                 className="flex-1 px-4 py-3 rounded-xl bg-teal-600 text-white hover:bg-teal-500 transition-colors"
