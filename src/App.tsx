@@ -585,8 +585,9 @@ const ShadowReader: React.FC<{
   onSaveNote?: (content: string) => void,
   onSaveVoice?: (audioUrl: string, duration: number, text: string) => void,
   playbackMode?: boolean,
-  initialAudioUrl?: string
-}> = ({ initialText, onBack, isStandalone, onSaveNote, onSaveVoice, playbackMode = false, initialAudioUrl }) => {
+  initialAudioUrl?: string,
+  isTouch?: boolean
+}> = ({ initialText, onBack, isStandalone, onSaveNote, onSaveVoice, playbackMode = false, initialAudioUrl, isTouch = false }) => {
   // Load settings from localStorage
   const savedSettings = getStorageItem<Record<string, any>>(STORAGE_KEYS.SHADOW_SETTINGS, {});
 
@@ -2352,15 +2353,16 @@ Shadowing Practice
         );
       case 'shadow':
         return (
-          <ShadowReader 
+          <ShadowReader
             key={`shadow-${shadowKey}`} // Use key to force reset
-            initialText={activeVoice ? activeVoice.text : shadowText} 
+            initialText={activeVoice ? activeVoice.text : shadowText}
             isStandalone={true}
             onSaveNote={handleSaveShadowNote}
             onSaveVoice={handleSaveVoice}
             playbackMode={!!activeVoice}
             initialAudioUrl={activeVoice?.audioUrl}
             onBack={activeVoice ? () => setActiveTab('voice') : undefined}
+            isTouch={isTouch}
           />
         );
       case 'voice':
