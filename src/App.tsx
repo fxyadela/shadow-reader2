@@ -54,9 +54,17 @@ import { motion, AnimatePresence } from 'motion/react';
 // Get the correct API base URL based on current location
 const getApiBaseUrl = () => {
   const { protocol, hostname, port } = window.location;
-  // Use current host + port for API calls
-  const portStr = port ? `:${port}` : '';
-  return `${protocol}//${hostname}${portStr}`;
+  // If we're on port 3000 (Vite), the backend is likely on 3001
+  // On mobile, we need to explicitly point to 3001 if not using a proxy
+  let baseUrl = '';
+  if (port === '3000') {
+    baseUrl = `${protocol}//${hostname}:3001`;
+  } else {
+    const portStr = port ? `:${port}` : '';
+    baseUrl = `${protocol}//${hostname}${portStr}`;
+  }
+  console.log('API Base URL:', baseUrl);
+  return baseUrl;
 };
 
 // ==========================================
@@ -4040,7 +4048,7 @@ export default function App() {
 
   const fetchNotes = async () => {
     try {
-      const response = await fetch('/api/notes');
+      const response = await fetch(`${getApiBaseUrl()}/api/notes`);
       if (response.ok) {
         const data = await response.json();
         setNotes(data);
@@ -4052,7 +4060,7 @@ export default function App() {
 
   const fetchVoices = async () => {
     try {
-      const response = await fetch('/api/voices');
+      const response = await fetch(`${getApiBaseUrl()}/api/voices`);
       if (response.ok) {
         const data = await response.json();
         setSavedVoices(data);
@@ -4064,7 +4072,7 @@ export default function App() {
 
   const fetchAssociations = async () => {
     try {
-      const response = await fetch('/api/associations');
+      const response = await fetch(`${getApiBaseUrl()}/api/associations`);
       if (response.ok) {
         const data = await response.json();
         setSentenceVoiceAssociations(data || {});
@@ -4077,7 +4085,7 @@ export default function App() {
   const handleUpdateAssociations = async (sentenceKey: string, voiceIds: string[]) => {
     if (!sentenceKey) return;
     try {
-      const response = await fetch('/api/associations', {
+      const response = await fetch(`${getApiBaseUrl()}/api/associations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sentenceKey, voiceIds })
@@ -4146,7 +4154,7 @@ export default function App() {
 
   const handleDeleteNote = async (id: string) => {
     try {
-      await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+      await fetch(`${getApiBaseUrl()}/api/notes/${id}`, { method: 'DELETE' });
       setNotes(prev => prev.filter(n => n.id !== id));
       if (selectedNote?.id === id) {
         setNotesView('list');
@@ -4159,7 +4167,7 @@ export default function App() {
 
   const handleUpdateNote = async (updatedNote: Note) => {
     try {
-      const response = await fetch('/api/notes', {
+      const response = await fetch(`${getApiBaseUrl()}/api/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedNote)
@@ -4217,7 +4225,7 @@ Shadowing Practice
     };
 
     try {
-      const response = await fetch('/api/voices', {
+      const response = await fetch(`${getApiBaseUrl()}/api/voices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newVoice)
@@ -4237,7 +4245,7 @@ Shadowing Practice
 
     const updatedVoice = { ...voice, title: newName };
     try {
-      const response = await fetch('/api/voices', {
+      const response = await fetch(`${getApiBaseUrl()}/api/voices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedVoice)
@@ -4252,7 +4260,7 @@ Shadowing Practice
 
   const handleDeleteVoice = async (id: string) => {
     try {
-      await fetch(`/api/voices/${id}`, { method: 'DELETE' });
+      await fetch(`${getApiBaseUrl()}/api/voices/${id}`, { method: 'DELETE' });
       setSavedVoices(prev => prev.filter(v => v.id !== id));
     } catch (error) {
       console.error('Failed to delete voice:', error);

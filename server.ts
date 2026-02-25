@@ -46,6 +46,15 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Logging middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  if (req.method === 'POST') {
+    console.log('Body keys:', Object.keys(req.body));
+  }
+  next();
+});
+
 // API Routes
 
 // Notes APIs
