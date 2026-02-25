@@ -2026,15 +2026,18 @@ const NotesList: React.FC<{
           </button>
         ))}
         {allTags.length > 5 && (
-          <div className="relative" ref={moreTagsRef}>
+          <div className="relative shrink-0" ref={moreTagsRef}>
             <button
-              onClick={() => setShowMoreTags(!showMoreTags)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMoreTags(!showMoreTags);
+              }}
               className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap bg-[#18181b] text-neutral-400 border border-white/10 hover:bg-white/5 transition-colors"
             >
               More
             </button>
             {showMoreTags && (
-              <div className="absolute top-full left-0 mt-2 bg-[#18181b] border border-white/10 rounded-xl p-2 shadow-xl z-50 min-w-[150px]">
+              <div className="absolute top-full left-0 mt-2 bg-[#18181b] border border-white/10 rounded-xl p-2 shadow-xl z-[60] min-w-[150px]">
                 {allTags.slice(5).map(tag => (
                   <button
                     key={tag}
