@@ -2019,7 +2019,7 @@ const NotesList: React.FC<{
       </header>
 
       {/* Tags Filter */}
-      <div className="relative flex gap-2 mb-6 overflow-x-auto pb-2 px-2 no-scrollbar">
+      <div className="flex flex-wrap gap-2 mb-6 px-2">
         <button
           onClick={() => onSetFilterTag(null)}
           className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${!filterTag ? 'bg-white text-black' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
@@ -2036,7 +2036,7 @@ const NotesList: React.FC<{
           </button>
         ))}
         {allTags.length > 3 && (
-          <div className="relative shrink-0" ref={moreTagsRef}>
+          <div className="relative" ref={moreTagsRef}>
             <button
               onClick={(e) => {
                 e.stopPropagation();
