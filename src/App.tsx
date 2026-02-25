@@ -1492,14 +1492,14 @@ const ShadowReader: React.FC<{
               exit={{ opacity: 0 }}
               className="max-w-xl mx-auto flex flex-col h-full"
             >
-              <div className="relative flex-1 min-h-0 mt-4">
+              <div className="relative flex-1 min-h-0 mt-6">
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  className="w-full h-full bg-transparent text-neutral-200 p-4 outline-none resize-none text-lg leading-relaxed placeholder:text-neutral-500 placeholder:font-semibold placeholder:text-left text-left overflow-y-auto"
+                  className="w-full h-full bg-transparent text-neutral-200 py-4 px-6 pr-20 outline-none resize-none text-xl font-semibold leading-relaxed placeholder:text-neutral-600 placeholder:font-semibold placeholder:text-left text-left overflow-y-auto"
                   placeholder="Paste your learning material here..."
                 />
-                <div className="absolute top-4 right-4 flex gap-2">
+                <div className="absolute top-0 right-0 flex gap-2 mt-6 mr-4">
                   {text && (
                     <button
                       onClick={() => setText('')}
