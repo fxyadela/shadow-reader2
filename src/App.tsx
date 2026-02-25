@@ -3484,10 +3484,12 @@ const TimestampEditor: React.FC<{
   const [segments, setSegments] = useState<LyricSegment[]>(initialSegments);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [audioDuration, setAudioDuration] = useState(voice.duration || 60);
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const lastScrollRef = useRef<number>(0);
 
   // Initialize audio
   useEffect(() => {
@@ -3522,10 +3524,11 @@ const TimestampEditor: React.FC<{
     setIsPlaying(!isPlaying);
   };
 
-  // Time update handler
+  // Time update handler - only update segment when not editing
   useEffect(() => {
     if (!audio) return;
     const handleTimeUpdate = () => {
+      if (isEditing) return; // Don't update segment while editing
       const currentTime = audio.currentTime;
       const activeIndex = segments.findIndex(
         seg => currentTime >= seg.startTime && currentTime < seg.endTime
@@ -3536,25 +3539,27 @@ const TimestampEditor: React.FC<{
     };
     audio.addEventListener('timeupdate', handleTimeUpdate);
     return () => audio.removeEventListener('timeupdate', handleTimeUpdate);
-  }, [audio, segments, currentSegmentIndex]);
+  }, [audio, segments, currentSegmentIndex, isEditing]);
 
-  // Auto-scroll to center active segment
+  // Auto-scroll to center active segment - only when playing and not editing
   useEffect(() => {
+    if (!isPlaying || isEditing) return;
     if (itemRefs.current[currentSegmentIndex] && containerRef.current) {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (!containerRef.current || !itemRefs.current[currentSegmentIndex]) return;
-          const container = containerRef.current;
-          const element = itemRefs.current[currentSegmentIndex];
-          const containerHeight = container.clientHeight;
-          const elementHeight = element.clientHeight;
-          const elementTop = element.offsetTop;
-          const targetScrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
-          container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
-        });
-      });
+      const container = containerRef.current;
+      const element = itemRefs.current[currentSegmentIndex];
+      if (!element) return;
+
+      const containerHeight = container.clientHeight;
+      const elementHeight = element.clientHeight;
+      const elementTop = element.offsetTop;
+      const targetScrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+      // Only scroll if significantly different from current position
+      if (Math.abs(container.scrollTop - targetScrollTop) > 50) {
+        container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+      }
     }
-  }, [currentSegmentIndex]);
+  }, [currentSegmentIndex, isPlaying, isEditing]);
 
   // Reset refs when segments change
   useEffect(() => {
@@ -3743,6 +3748,8 @@ const TimestampEditor: React.FC<{
                   e.stopPropagation();
                   handleTextChange(idx, e.target.value);
                 }}
+                onFocus={() => setIsEditing(true)}
+                onBlur={() => setIsEditing(false)}
                 onClick={(e) => e.stopPropagation()}
                 className="flex-1 bg-transparent text-white text-sm resize-none outline-none"
                 rows={Math.max(1, Math.ceil(seg.text.length / 30))}
