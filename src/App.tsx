@@ -1406,7 +1406,7 @@ const ShadowReader: React.FC<{
       )}
 
       {/* Header */}
-      <header className="mb-6 mt-4 px-2 flex justify-between items-end">
+      <header className="sticky top-0 z-30 bg-[#09090b]/95 backdrop-blur-sm h-[72px] mb-0 px-2 flex justify-between items-end">
         <div>
           <h1 className="text-2xl font-bold text-white mb-1">Shadow Reader</h1>
           <p className="text-neutral-500 text-sm">Practice speaking every day</p>
@@ -1783,7 +1783,7 @@ const ShadowReader: React.FC<{
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-x-0 top-[60px] bottom-16 overflow-y-auto no-scrollbar pb-48 px-2 [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)] scroll-smooth"
+              className="fixed inset-x-0 top-[72px] bottom-16 overflow-y-auto no-scrollbar pb-48 px-2 [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)] scroll-smooth"
               ref={containerRef}
               style={{ scrollBehavior: 'smooth' }}
             >
