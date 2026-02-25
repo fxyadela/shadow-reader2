@@ -67,7 +67,8 @@ const STORAGE_KEYS = {
   NOTES: 'shadow-reader-notes',
   SAVED_VOICES: 'shadow-reader-voices',
   SHADOW_SETTINGS: 'shadow-reader-settings',
-  SENTENCE_VOICE_ASSOCIATIONS: 'shadow-reader-sentence-voice-associations'
+  SENTENCE_VOICE_ASSOCIATIONS: 'shadow-reader-sentence-voice-associations',
+  EDITED_TIMESTAMPS: 'shadow-reader-edited-timestamps'
 } as const;
 
 // Generic get/set for localStorage
@@ -591,8 +592,9 @@ const ShadowReader: React.FC<{
   onSaveVoice?: (audioUrl: string, duration: number, text: string, customName?: string) => void,
   playbackMode?: boolean,
   initialAudioUrl?: string,
-  isTouch?: boolean
-}> = ({ initialText, onBack, isStandalone, onSaveNote, onSaveVoice, playbackMode = false, initialAudioUrl, isTouch = false }) => {
+  isTouch?: boolean,
+  initialSegments?: LyricSegment[]
+}> = ({ initialText, onBack, isStandalone, onSaveNote, onSaveVoice, playbackMode = false, initialAudioUrl, isTouch = false, initialSegments }) => {
   // Load settings from localStorage
   const savedSettings = getStorageItem<Record<string, any>>(STORAGE_KEYS.SHADOW_SETTINGS, {});
 
@@ -666,7 +668,7 @@ const ShadowReader: React.FC<{
 
   const audio = audioState;
 
-  const [segments, setSegments] = useState<LyricSegment[]>([]);
+  const [segments, setSegments] = useState<LyricSegment[]>(initialSegments || []);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   
   // Translation State
@@ -2922,8 +2924,9 @@ const VoiceCollection: React.FC<{
   onDeleteVoice: (id: string) => void,
   onPlayVoice: (voice: VoiceItem) => void,
   onUpdateVoiceName?: (id: string, newName: string) => void,
+  onEditTimestamps?: (voice: VoiceItem) => void,
   isTouch?: boolean
-}> = ({ voices, onDeleteVoice, onPlayVoice, onUpdateVoiceName, isTouch = false }) => {
+}> = ({ voices, onDeleteVoice, onPlayVoice, onUpdateVoiceName, onEditTimestamps, isTouch = false }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   return (
@@ -2958,6 +2961,21 @@ const VoiceCollection: React.FC<{
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-neutral-500 text-xs font-mono">{voice.date}</span>
+                    {onEditTimestamps && (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onEditTimestamps(voice);
+                        }}
+                        className={`p-1 text-neutral-600 hover:text-teal-400 transition-opacity ${
+                          isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                        }`}
+                        title="Edit timestamps"
+                      >
+                        <Clock size={14} />
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.preventDefault();
@@ -3108,6 +3126,257 @@ const BottomNav: React.FC<{ activeTab: MainTab, onTabChange: (tab: MainTab) => v
 };
 
 // ==========================================
+// COMPONENT: TIMESTAMP EDITOR
+// ==========================================
+
+const TimestampEditor: React.FC<{
+  voice: VoiceItem;
+  initialSegments: LyricSegment[];
+  audioUrl: string;
+  onSave: (segments: LyricSegment[]) => void;
+  onClose: () => void;
+  isTouch?: boolean;
+}> = ({ voice, initialSegments, audioUrl, onSave, onClose, isTouch = false }) => {
+  const [segments, setSegments] = useState<LyricSegment[]>(initialSegments);
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Initialize audio
+  useEffect(() => {
+    const newAudio = new Audio(audioUrl);
+    newAudio.addEventListener('ended', () => setIsPlaying(false));
+    setAudio(newAudio);
+    return () => {
+      newAudio.pause();
+      newAudio.src = '';
+    };
+  }, [audioUrl]);
+
+  // Handle play/pause
+  const togglePlay = () => {
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+    } else {
+      audio.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  // Time update handler
+  useEffect(() => {
+    if (!audio) return;
+    const handleTimeUpdate = () => {
+      const currentTime = audio.currentTime;
+      const activeIndex = segments.findIndex(
+        seg => currentTime >= seg.startTime && currentTime < seg.endTime
+      );
+      if (activeIndex !== -1 && activeIndex !== currentSegmentIndex) {
+        setCurrentSegmentIndex(activeIndex);
+      }
+    };
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    return () => audio.removeEventListener('timeupdate', handleTimeUpdate);
+  }, [audio, segments, currentSegmentIndex]);
+
+  // Auto-scroll to center active segment
+  useEffect(() => {
+    if (itemRefs.current[currentSegmentIndex] && containerRef.current) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!containerRef.current || !itemRefs.current[currentSegmentIndex]) return;
+          const container = containerRef.current;
+          const element = itemRefs.current[currentSegmentIndex];
+          const containerHeight = container.clientHeight;
+          const elementHeight = element.clientHeight;
+          const elementTop = element.offsetTop;
+          const targetScrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
+          container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+        });
+      });
+    }
+  }, [currentSegmentIndex]);
+
+  // Reset refs when segments change
+  useEffect(() => {
+    itemRefs.current = Array(segments.length).fill(null);
+  }, [segments.length]);
+
+  const handleSegmentClick = (index: number) => {
+    if (!audio) return;
+    audio.currentTime = segments[index].startTime;
+    setCurrentSegmentIndex(index);
+    audio.play();
+    setIsPlaying(true);
+  };
+
+  const handleTextChange = (index: number, newText: string) => {
+    const newSegments = [...segments];
+    newSegments[index] = { ...newSegments[index], text: newText };
+    setSegments(newSegments);
+  };
+
+  const handleMergePrev = (index: number) => {
+    if (index === 0) return;
+    const newSegments = [...segments];
+    const prevSeg = newSegments[index - 1];
+    const currSeg = newSegments[index];
+    const prevEndsWithLetter = /[a-zA-Z]$/.test(prevSeg.text);
+    const currStartsWithLetter = /^[a-zA-Z]/.test(currSeg.text);
+    const separator = (prevEndsWithLetter && currStartsWithLetter) ? '' : ' ';
+    newSegments[index - 1] = {
+      ...prevSeg,
+      text: prevSeg.text + separator + currSeg.text,
+      endTime: currSeg.endTime
+    };
+    newSegments.splice(index, 1);
+    setSegments(newSegments);
+  };
+
+  const handleMergeNext = (index: number) => {
+    if (index >= segments.length - 1) return;
+    const newSegments = [...segments];
+    const currSeg = newSegments[index];
+    const nextSeg = newSegments[index + 1];
+    const currEndsWithLetter = /[a-zA-Z]$/.test(currSeg.text);
+    const nextStartsWithLetter = /^[a-zA-Z]/.test(nextSeg.text);
+    const separator = (currEndsWithLetter && nextStartsWithLetter) ? '' : ' ';
+    newSegments[index] = {
+      ...currSeg,
+      text: currSeg.text + separator + nextSeg.text,
+      endTime: nextSeg.endTime
+    };
+    newSegments.splice(index + 1, 1);
+    setSegments(newSegments);
+  };
+
+  const handleSave = () => {
+    onSave(segments);
+  };
+
+  const formatTime = (time: number) => {
+    const mins = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <motion.div
+      className="fixed inset-0 bg-[#09090b] z-50 flex flex-col"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      {/* Header */}
+      <header className="flex items-center justify-between p-4 border-b border-white/10">
+        <button
+          onClick={onClose}
+          className="p-2 rounded-full hover:bg-white/10 text-neutral-400"
+        >
+          <X size={24} />
+        </button>
+        <h1 className="text-lg font-semibold text-white">Edit Timestamps</h1>
+        <button
+          onClick={handleSave}
+          className="px-4 py-2 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-500"
+        >
+          Save
+        </button>
+      </header>
+
+      {/* Audio Player Controls */}
+      <div className="p-4 border-b border-white/10">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={togglePlay}
+            className="p-3 rounded-full bg-teal-600 text-white hover:bg-teal-500"
+          >
+            {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+          </button>
+          <div className="flex-1">
+            <div className="text-sm text-neutral-400 mb-1">{voice.title}</div>
+            <div className="text-xs text-neutral-500">
+              {formatTime(audio?.currentTime || 0)} / {formatTime(audio?.duration || 0)}
+            </div>
+          </div>
+        </div>
+        {/* Progress bar */}
+        <div className="mt-3 h-1 bg-neutral-800 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-teal-500 transition-all"
+            style={{ width: `${((audio?.currentTime || 0) / (audio?.duration || 1)) * 100}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Segments List */}
+      <div
+        ref={containerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-2"
+      >
+        {segments.map((seg, idx) => (
+          <div
+            key={idx}
+            ref={el => itemRefs.current[idx] = el}
+            onClick={() => handleSegmentClick(idx)}
+            className={`p-3 rounded-xl border transition-all cursor-pointer ${
+              idx === currentSegmentIndex
+                ? 'bg-teal-950/30 border-teal-500/50'
+                : 'bg-neutral-900/50 border-white/10 hover:border-white/20'
+            }`}
+          >
+            <div className="flex items-start gap-2">
+              <span className="text-xs font-mono text-neutral-500 min-w-[40px]">
+                {formatTime(seg.startTime)}
+              </span>
+              <textarea
+                value={seg.text}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  handleTextChange(idx, e.target.value);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="flex-1 bg-transparent text-white text-sm resize-none outline-none"
+                rows={Math.max(1, Math.ceil(seg.text.length / 30))}
+              />
+              <div className="flex flex-col gap-1">
+                {idx > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMergePrev(idx);
+                    }}
+                    className="p-1 rounded hover:bg-white/10 text-neutral-500 hover:text-teal-400"
+                    title="Merge with previous"
+                  >
+                    <ChevronUp size={14} />
+                  </button>
+                )}
+                {idx < segments.length - 1 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMergeNext(idx);
+                    }}
+                    className="p-1 rounded hover:bg-white/10 text-neutral-500 hover:text-teal-400"
+                    title="Merge with next"
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+
+// ==========================================
 // MAIN APP COMPONENT
 // ==========================================
 
@@ -3129,6 +3398,10 @@ export default function App() {
   const [filterTag, setFilterTag] = useState<string | null>(null);
 
   const [activeVoice, setActiveVoice] = useState<VoiceItem | null>(null);
+  const [editingVoice, setEditingVoice] = useState<VoiceItem | null>(null);
+  const [editedTimestamps, setEditedTimestamps] = useState<Record<string, LyricSegment[]>>(() =>
+    getStorageItem<Record<string, LyricSegment[]>>(STORAGE_KEYS.EDITED_TIMESTAMPS, {})
+  );
 
   // Persistence: Save to localStorage when state changes
   useEffect(() => {
@@ -3138,6 +3411,10 @@ export default function App() {
   useEffect(() => {
     setStorageItem(STORAGE_KEYS.SAVED_VOICES, savedVoices);
   }, [savedVoices]);
+
+  useEffect(() => {
+    setStorageItem(STORAGE_KEYS.EDITED_TIMESTAMPS, editedTimestamps);
+  }, [editedTimestamps]);
 
   // Handlers
   const handleNavigateToShadow = (text: string) => {
@@ -3240,6 +3517,19 @@ Shadowing Practice
     setShadowKey(prev => prev + 1);
   };
 
+  const handleEditTimestamps = (voice: VoiceItem) => {
+    setEditingVoice(voice);
+  };
+
+  const handleSaveTimestamps = (voiceId: string, segments: LyricSegment[]) => {
+    setEditedTimestamps(prev => ({ ...prev, [voiceId]: segments }));
+    setEditingVoice(null);
+  };
+
+  const handleCloseTimestampEditor = () => {
+    setEditingVoice(null);
+  };
+
   // Render content based on active tab
   const renderContent = () => {
     switch (activeTab) {
@@ -3284,6 +3574,7 @@ Shadowing Practice
             initialAudioUrl={activeVoice?.audioUrl}
             onBack={activeVoice ? () => setActiveTab('voice') : undefined}
             isTouch={isTouch}
+            initialSegments={activeVoice ? editedTimestamps[activeVoice.id] : undefined}
           />
         );
       case 'voice':
@@ -3293,15 +3584,37 @@ Shadowing Practice
             onDeleteVoice={handleDeleteVoice}
             onPlayVoice={handlePlayVoice}
             onUpdateVoiceName={handleUpdateVoiceName}
+            onEditTimestamps={handleEditTimestamps}
             isTouch={isTouch}
           />
         );
     }
   };
 
+  // Render timestamp editor if a voice is being edited
+  const renderTimestampEditor = () => {
+    if (!editingVoice) return null;
+
+    const existingSegments = editedTimestamps[editingVoice.id];
+    const initialSegments = existingSegments || parseLyrics(editingVoice.text);
+
+    return (
+      <TimestampEditor
+        key={editingVoice.id}
+        voice={editingVoice}
+        initialSegments={initialSegments}
+        audioUrl={editingVoice.audioUrl}
+        onSave={(segments) => handleSaveTimestamps(editingVoice.id, segments)}
+        onClose={handleCloseTimestampEditor}
+        isTouch={isTouch}
+      />
+    );
+  };
+
   return (
     <div className="bg-[#09090b] min-h-screen">
       {renderContent()}
+      {renderTimestampEditor()}
       <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   );
