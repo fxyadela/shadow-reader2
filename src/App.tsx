@@ -1832,7 +1832,7 @@ const ShadowReader: React.FC<{
               </div>
 
               {/* CTA */}
-              <div className="pt-8 pb-8">
+              <div className="pt-2 pb-6">
                 <button 
                   onClick={handleGenerate}
                   disabled={isLoading}
