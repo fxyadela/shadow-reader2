@@ -1973,11 +1973,21 @@ const NotesList: React.FC<{
     }
   };
 
-  // Extract all unique tags
+  // Extract all unique tags sorted by most recent use
   const allTags = useMemo(() => {
-    const tags = new Set<string>();
-    notes.forEach(note => note.tags.forEach(t => tags.add(t)));
-    return Array.from(tags);
+    const tagMap = new Map<string, number>();
+    notes.forEach(note => {
+      note.tags.forEach(t => {
+        // Keep the most recent timestamp for each tag
+        if (!tagMap.has(t) || tagMap.get(t)! < note.timestamp) {
+          tagMap.set(t, note.timestamp);
+        }
+      });
+    });
+    // Sort by timestamp descending (most recent first)
+    return Array.from(tagMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([tag]) => tag);
   }, [notes]);
 
   const filteredNotes = useMemo(() => {
