@@ -2557,6 +2557,15 @@ const NotesDetail: React.FC<{
     setIsEditing(false);
   };
 
+  const handleGlobalClick = (e: React.MouseEvent) => {
+    // Only close if not clicking inside a dropdown or the trigger
+    const target = e.target as HTMLElement;
+    if (!target.closest('.voice-dropdown-container')) {
+      setOpenVoiceDropdown(null);
+      setOpenPlayDropdown(null);
+    }
+  };
+
   return (
     <motion.div
       className="min-h-screen bg-[#09090b] text-[#e4e4e7] font-sans pb-24"
@@ -2564,10 +2573,7 @@ const NotesDetail: React.FC<{
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
       {...swipeHandlers}
-      onClick={() => {
-        setOpenVoiceDropdown(null);
-        setOpenPlayDropdown(null);
-      }}
+      onClick={handleGlobalClick}
     >
       {/* 1. Header */}
       <header className="sticky top-0 z-20 bg-[#09090b]/80 backdrop-blur-md border-b border-white/10 px-4 py-3 flex items-center gap-4">
@@ -3264,7 +3270,7 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
     : 'top-full mt-1';
 
   return (
-    <div className="relative flex items-center gap-1 overflow-visible" onClick={(e) => e.stopPropagation()}>
+    <div className="relative flex items-center gap-1 overflow-visible voice-dropdown-container" onClick={(e) => e.stopPropagation()}>
       {/* Always show Plus to add association */}
       <button
         onClick={(e) => {
@@ -3300,7 +3306,6 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
           {/* Play dropdown - shows when multiple voices and user clicks speaker */}
           {isPlayDropdownOpen && hasMultiple && (
             <div
-              onClick={(e) => e.stopPropagation()}
               className={`absolute ${alignmentClasses} ${directionClasses} bg-neutral-800 rounded-xl border border-white/10 p-1 shadow-xl z-[60] w-[120px] sm:w-[150px] max-w-[calc(100vw-20px)]`}>
               {associatedVoices.map(voice => (
                 <button
@@ -3323,7 +3328,6 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
 
       {isOpen && (
         <div
-          onClick={(e) => e.stopPropagation()}
           className={`absolute ${alignmentClasses} ${directionClasses} bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl z-50 w-[180px] sm:w-[200px] max-w-[calc(100vw-20px)]`}>
           {hasAssociated ? (
             <>
@@ -4192,7 +4196,7 @@ export default function App() {
     setNotesView('detail');
   };
 
-  const handleSaveShadowNote = (content: string) => {
+  const handleSaveShadowNote = async (content: string) => {
     const newNote: Note = {
       id: `note-${Date.now()}`,
       title: "Shadowing Practice",
@@ -4205,7 +4209,21 @@ Shadowing Practice
 ## 🗣️ 跟读材料
 1. **“${content}”**`
     };
-    setNotes([newNote, ...notes]);
+    
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newNote)
+      });
+      if (response.ok) {
+        await fetchNotes();
+      }
+    } catch (error) {
+      console.error('Failed to save shadow note:', error);
+      // Fallback to local state if server fails
+      setNotes(prev => [newNote, ...prev]);
+    }
   };
 
   const handleSaveVoice = async (audioUrl: string, duration: number, text: string, customName?: string) => {
@@ -4231,8 +4249,8 @@ Shadowing Practice
         body: JSON.stringify(newVoice)
       });
       if (response.ok) {
-        const savedVoice = await response.json();
-        setSavedVoices(prev => [savedVoice, ...prev]);
+        // Fetch latest voices to ensure list is up to date
+        await fetchVoices();
       }
     } catch (error) {
       console.error('Failed to save voice:', error);
