@@ -1831,27 +1831,6 @@ const ShadowReader: React.FC<{
                 </div>
               </div>
 
-              {/* CTA */}
-              <div className="pt-2 pb-6">
-                <button 
-                  onClick={handleGenerate}
-                  disabled={isLoading}
-                  className="w-full group relative overflow-hidden rounded-2xl bg-teal-600 p-4 transition-all hover:bg-teal-500 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  <div className="relative z-10 flex items-center justify-center gap-2 text-lg font-semibold text-black">
-                    {isLoading ? (
-                      <Loader2 size={20} className="animate-spin" />
-                    ) : (
-                      <Wand2 size={20} className="group-hover:rotate-12 transition-transform" />
-                    )}
-                    <span>{isLoading ? 'Generating...' : 'Generate Speech'}</span>
-                  </div>
-                </button>
-              </div>
-              </div>
-            </motion.div>
-          )}
-
           {mode === 'shadowing' && (
             <motion.div
               key="shadowing"
