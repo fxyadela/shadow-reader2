@@ -2019,30 +2019,34 @@ const NotesList: React.FC<{
       </header>
 
       {/* Tags Filter */}
-      <div className="relative mb-6 px-2">
-        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar pr-10">
-          <button
-            onClick={() => onSetFilterTag(null)}
-            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${!filterTag ? 'bg-white text-black' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
-          >
-            All
-          </button>
-          {allTags.map(tag => (
+      <div className="relative mb-6">
+        <div className="relative">
+          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar pr-10 pl-2">
             <button
-              key={tag}
-              onClick={() => onSetFilterTag(tag === filterTag ? null : tag)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${tag === filterTag ? 'bg-teal-900/50 text-teal-200 border border-teal-500/30' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
+              onClick={() => onSetFilterTag(null)}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${!filterTag ? 'bg-white text-black' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
             >
-              #{tag}
+              All
             </button>
-          ))}
+            {allTags.map(tag => (
+              <button
+                key={tag}
+                onClick={() => onSetFilterTag(tag === filterTag ? null : tag)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${tag === filterTag ? 'bg-teal-900/50 text-teal-200 border border-teal-500/30' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
+              >
+                #{tag}
+              </button>
+            ))}
+          </div>
+          {/* Fade gradient on right edge */}
+          <div className="absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-[#09090b] to-transparent pointer-events-none" />
         </div>
         {allTags.length > 0 && (
           <button
             onClick={() => setShowMoreTags(true)}
-            className="absolute right-2 top-0 p-1.5 rounded-full bg-[#18181b] text-neutral-400 border border-white/10 hover:bg-white/5"
+            className="absolute right-0 top-0 p-1.5 text-neutral-400 hover:text-white"
           >
-            <ChevronDown size={16} />
+            <ChevronDown size={18} />
           </button>
         )}
       </div>
