@@ -202,6 +202,53 @@ const useSwipeToDelete = (onSwipeComplete: () => void) => {
   };
 };
 
+const useSwipeToBack = (onBack: () => void, enabled: boolean = true) => {
+  const swipeRef = React.useRef({
+    startX: 0,
+    currentX: 0,
+    startY: 0,
+    isSwiping: false
+  });
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!enabled) return;
+    swipeRef.current = {
+      startX: e.touches[0].clientX,
+      currentX: e.touches[0].clientX,
+      startY: e.touches[0].clientY,
+      isSwiping: true
+    };
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!enabled || !swipeRef.current.isSwiping) return;
+    swipeRef.current.currentX = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!enabled || !swipeRef.current.isSwiping) return;
+    
+    const diffX = swipeRef.current.currentX - swipeRef.current.startX;
+    const diffY = Math.abs(e.changedTouches[0].clientY - swipeRef.current.startY);
+    
+    // Horizontal swipe must be significantly larger than vertical movement
+    // and must be from left to right (diffX > 0)
+    if (diffX > 100 && diffX > diffY * 2) {
+      onBack();
+    }
+    
+    swipeRef.current.isSwiping = false;
+  };
+
+  return {
+    handlers: {
+      onTouchStart: handleTouchStart,
+      onTouchMove: handleTouchMove,
+      onTouchEnd: handleTouchEnd
+    }
+  };
+};
+
 // ==========================================
 // SHARED TYPES & CONSTANTS
 // ==========================================
@@ -681,8 +728,20 @@ const ShadowReader: React.FC<{
   const [showVoiceDropdown, setShowVoiceDropdown] = useState(false);
   const [showEmotionDropdown, setShowEmotionDropdown] = useState(false);
   const [showSoundEffectDropdown, setShowSoundEffectDropdown] = useState(false);
+  const [showSpeedPopup, setShowSpeedPopup] = useState(false);
   const [isTextTranslated, setIsTextTranslated] = useState(false);
   const [originalTextBeforeTranslation, setOriginalTextBeforeTranslation] = useState('');
+
+  // Swipe back gesture
+  const { handlers: swipeHandlers } = useSwipeToBack(() => {
+    if (mode === 'shadowing') {
+      if (!pendingVoiceData) handleBackToEdit();
+    } else if (mode === 'settings') {
+      setMode('edit');
+    } else if (onBack) {
+      onBack();
+    }
+  }, isTouch);
 
   // Audio Cleanup on Unmount
   useEffect(() => {
@@ -1237,6 +1296,7 @@ const ShadowReader: React.FC<{
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
+      {...swipeHandlers}
     >
       {/* Save Voice Modal */}
       {showSaveModal && (
@@ -1971,18 +2031,26 @@ const ShadowReader: React.FC<{
                   </div>
 
                   {/* Speed */}
-                  <button
-                    onClick={() => {
-                      const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
-                      const currentIndex = speeds.indexOf(speed);
-                      const nextIndex = (currentIndex + 1) % speeds.length;
-                      setSpeed(speeds[nextIndex]);
-                    }}
-                    className="px-3 py-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors text-sm font-medium"
-                    title="Playback speed"
-                  >
-                    {speed}x
-                  </button>
+                  <div className="relative group">
+                    <button
+                      onClick={() => setShowSpeedPopup(!showSpeedPopup)}
+                      className="px-3 py-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors text-sm font-medium"
+                      title="Playback speed"
+                    >
+                      {speed}x
+                    </button>
+                    <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-bottom-right transition-opacity ${isTouch ? (showSpeedPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
+                      {[0.5, 0.75, 1, 1.25, 1.5, 2].map(s => (
+                        <button
+                          key={s}
+                          onClick={() => { setSpeed(s); setShowSpeedPopup(false); }}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${speed === s ? 'bg-teal-600/30 text-teal-400' : 'text-neutral-400 hover:bg-white/10 hover:text-white'}`}
+                        >
+                          {s}x
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2249,6 +2317,15 @@ const NotesDetail: React.FC<{
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const detailContentRef = useRef<HTMLDivElement>(null);
 
+  // Swipe back gesture
+  const { handlers: swipeHandlers } = useSwipeToBack(() => {
+    if (isEditing) {
+      setIsEditing(false);
+    } else {
+      onBack();
+    }
+  }, isTouch);
+
   // Delete note with confirmation
   const handleDeleteClick = () => {
     setShowDeleteConfirm(true);
@@ -2325,6 +2402,7 @@ const NotesDetail: React.FC<{
   const [detailPlayingVoice, setDetailPlayingVoice] = useState<VoiceItem | null>(null);
   const [detailIsPlaying, setDetailIsPlaying] = useState(false);
   const [detailPlaybackSpeed, setDetailPlaybackSpeed] = useState(1);
+  const [showDetailSpeedPopup, setShowDetailSpeedPopup] = useState(false);
   const [detailCurrentTime, setDetailCurrentTime] = useState(0);
   const [detailDuration, setDetailDuration] = useState(0);
   const [detailVoiceList, setDetailVoiceList] = useState<VoiceItem[]>([]);
@@ -2488,6 +2566,7 @@ const NotesDetail: React.FC<{
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
+      {...swipeHandlers}
       onClick={() => {
         setOpenVoiceDropdown(null);
         setOpenPlayDropdown(null);
@@ -3078,18 +3157,26 @@ const NotesDetail: React.FC<{
                 </button>
 
                 {/* Speed */}
-                <button
-                  onClick={() => {
-                    const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
-                    const currentIndex = speeds.indexOf(detailPlaybackSpeed);
-                    const nextIndex = (currentIndex + 1) % speeds.length;
-                    setDetailPlaybackSpeed(speeds[nextIndex]);
-                  }}
-                  className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors text-xs font-medium min-w-[28px] flex-shrink-0"
-                  title="Playback speed"
-                >
-                  {detailPlaybackSpeed}x
-                </button>
+                <div className="relative group flex-shrink-0">
+                  <button
+                    onClick={() => setShowDetailSpeedPopup(!showDetailSpeedPopup)}
+                    className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors text-xs font-medium min-w-[28px]"
+                    title="Playback speed"
+                  >
+                    {detailPlaybackSpeed}x
+                  </button>
+                  <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-1 shadow-xl flex flex-col gap-1 z-50 transition-opacity ${isTouch ? (showDetailSpeedPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
+                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map(s => (
+                      <button
+                        key={s}
+                        onClick={() => { setDetailPlaybackSpeed(s); setShowDetailSpeedPopup(false); }}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${detailPlaybackSpeed === s ? 'bg-teal-600/30 text-teal-400' : 'text-neutral-400 hover:bg-white/10 hover:text-white'}`}
+                      >
+                        {s}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 {/* Seek forward */}
                 <button
