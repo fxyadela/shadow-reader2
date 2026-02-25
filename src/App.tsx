@@ -3382,7 +3382,7 @@ const TimestampEditor: React.FC<{
 
   return (
     <motion.div
-      className="fixed inset-0 bg-[#09090b] z-50 flex flex-col"
+      className="fixed inset-0 bg-[#09090b] z-50 flex flex-col h-[100dvh] overflow-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
