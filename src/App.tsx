@@ -1726,7 +1726,7 @@ const ShadowReader: React.FC<{
                       key={idx}
                       ref={el => itemRefs.current[idx] = el}
                       className={`transition-all duration-500 cursor-pointer group ${
-                        isPlaying && idx === currentSegmentIndex
+                        idx === currentSegmentIndex
                           ? 'scale-100 opacity-100 blur-0'
                           : 'scale-95 opacity-40 blur-[1px] hover:opacity-70 hover:blur-0'
                       }`}
@@ -1735,7 +1735,7 @@ const ShadowReader: React.FC<{
                       <div className="flex justify-between items-start gap-4">
                         <div className="flex-1 text-center">
                           <p className={`text-2xl md:text-3xl font-bold leading-relaxed transition-colors duration-500 whitespace-pre-wrap break-normal ${
-                            isPlaying && idx === currentSegmentIndex ? 'text-white' : 'text-neutral-400'
+                            idx === currentSegmentIndex ? 'text-white' : 'text-neutral-400'
                           }`}>
                             {seg.text}
                           </p>
@@ -3666,6 +3666,7 @@ export default function App() {
     getStorageItem<VoiceItem[]>(STORAGE_KEYS.SAVED_VOICES, [])
   );
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  const [isNewNote, setIsNewNote] = useState(false);
   const [filterTag, setFilterTag] = useState<string | null>(null);
 
   const [activeVoice, setActiveVoice] = useState<VoiceItem | null>(null);
@@ -3718,8 +3719,8 @@ export default function App() {
       tags: [],
       rawContent: ""
     };
-    setNotes([newNote, ...notes]);
     setSelectedNote(newNote);
+    setIsNewNote(true);
     setNotesView('detail');
   };
 
@@ -3732,7 +3733,14 @@ export default function App() {
   };
 
   const handleUpdateNote = (updatedNote: Note) => {
-    setNotes(notes.map(n => n.id === updatedNote.id ? updatedNote : n));
+    if (isNewNote) {
+      // Add new note to the list
+      setNotes([updatedNote, ...notes]);
+      setIsNewNote(false);
+    } else {
+      // Update existing note
+      setNotes(notes.map(n => n.id === updatedNote.id ? updatedNote : n));
+    }
     setSelectedNote(updatedNote);
   };
 
@@ -3825,7 +3833,10 @@ Shadowing Practice
                 key="detail"
                 note={selectedNote}
                 onNavigateToShadow={handleNavigateToShadow}
-                onBack={() => setNotesView('list')}
+                onBack={() => {
+                  setNotesView('list');
+                  setIsNewNote(false);
+                }}
                 onSave={handleUpdateNote}
                 onDelete={handleDeleteNote}
                 savedVoices={savedVoices}
