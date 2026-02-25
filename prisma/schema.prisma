@@ -1,0 +1,45 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Note {
+  id         String   @id @default(uuid())
+  title      String
+  date       String
+  timestamp  BigInt
+  tags       String   // Stored as JSON string
+  rawContent String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model VoiceItem {
+  id        String   @id @default(uuid())
+  title     String
+  date      String
+  timestamp BigInt
+  audioUrl  String
+  duration  Float
+  text      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Setting {
+  key   String @id
+  value String // Stored as JSON string
+}
+
+model Association {
+  id          String @id @default(uuid())
+  sentenceKey String
+  voiceIds    String // Stored as JSON string
+}

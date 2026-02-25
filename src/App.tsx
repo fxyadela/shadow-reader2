@@ -1476,7 +1476,7 @@ const ShadowReader: React.FC<{
           <p className="text-neutral-500 text-sm">Practice speaking every day</p>
         </div>
 
-        {(mode === 'edit' || mode === 'settings') && text.trim() && (
+        {(mode === 'edit' || mode === 'settings') && (
           <button
             onClick={mode === 'settings' ? handleGenerate : handleToSettings}
             disabled={!text.trim() || isLoading}
@@ -1576,10 +1576,15 @@ const ShadowReader: React.FC<{
                 )}
                 {text && (
                   <button
-                    onClick={() => setText('')}
-                    className="p-1.5 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-white transition-colors"
+                    onClick={() => {
+                      setText('');
+                      setIsTextTranslated(false);
+                      setOriginalTextBeforeTranslation('');
+                    }}
+                    className="p-1.5 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-red-400 transition-colors"
+                    title="Clear all"
                   >
-                    <X size={16} />
+                    <Trash2 size={16} />
                   </button>
                 )}
               </div>
@@ -2308,8 +2313,10 @@ const NotesDetail: React.FC<{
   onDelete: (id: string) => void,
   savedVoices: VoiceItem[],
   onPlayVoice: (voice: VoiceItem) => void,
-  isTouch?: boolean
-}> = ({ note, onNavigateToShadow, onBack, onSave, onDelete, savedVoices, onPlayVoice, isTouch = false }) => {
+  isTouch?: boolean,
+  sentenceVoiceAssociations: Record<string, string[]>,
+  onUpdateAssociations: (sentenceKey: string, voiceIds: string[]) => void
+}> = ({ note, onNavigateToShadow, onBack, onSave, onDelete, savedVoices, onPlayVoice, isTouch = false, sentenceVoiceAssociations, onUpdateAssociations }) => {
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(note.rawContent === "");
   const [rawText, setRawText] = useState(note.rawContent);
@@ -2392,9 +2399,6 @@ const NotesDetail: React.FC<{
   const parsedContent = useMemo(() => parseNoteContent(rawText), [rawText]);
 
   // Voice Association State
-  const [sentenceVoiceAssociations, setSentenceVoiceAssociations] = useState<Record<string, string[]>>(() =>
-    getStorageItem<Record<string, string[]>>(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, {})
-  );
   const [openVoiceDropdown, setOpenVoiceDropdown] = useState<string | null>(null);
   const [openPlayDropdown, setOpenPlayDropdown] = useState<string | null>(null);
 
@@ -2469,11 +2473,6 @@ const NotesDetail: React.FC<{
     }
   }, [detailPlaybackSpeed]);
 
-  // Persist associations to localStorage
-  useEffect(() => {
-    setStorageItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, sentenceVoiceAssociations);
-  }, [sentenceVoiceAssociations]);
-
   // Get unique key for a sentence (combines note id + section + index)
   const getSentenceKey = (section: string, index: number, text: string) => {
     return `${note.id}-${section}-${index}-${text.slice(0, 20)}`;
@@ -2487,26 +2486,16 @@ const NotesDetail: React.FC<{
 
   // Associate a voice with a sentence
   const associateVoice = (sentenceKey: string, voiceId: string) => {
-    setSentenceVoiceAssociations(prev => {
-      const current = prev[sentenceKey] || [];
-      if (current.includes(voiceId)) return prev; // Already associated
-      return {
-        ...prev,
-        [sentenceKey]: [...current, voiceId]
-      };
-    });
+    const current = sentenceVoiceAssociations[sentenceKey] || [];
+    if (current.includes(voiceId)) return; // Already associated
+    onUpdateAssociations(sentenceKey, [...current, voiceId]);
     setOpenVoiceDropdown(null);
   };
 
   // Remove voice association
   const removeVoiceAssociation = (sentenceKey: string, voiceId: string) => {
-    setSentenceVoiceAssociations(prev => {
-      const current = prev[sentenceKey] || [];
-      return {
-        ...prev,
-        [sentenceKey]: current.filter(id => id !== voiceId)
-      };
-    });
+    const current = sentenceVoiceAssociations[sentenceKey] || [];
+    onUpdateAssociations(sentenceKey, current.filter(id => id !== voiceId));
   };
 
   const toggleAccordion = (id: string) => {
@@ -3999,6 +3988,109 @@ export default function App() {
   const [isNewNote, setIsNewNote] = useState(false);
   const [filterTag, setFilterTag] = useState<string | null>(null);
 
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [sentenceVoiceAssociations, setSentenceVoiceAssociations] = useState<Record<string, string[]>>({});
+
+  // Persistence: Fetch from DB on mount
+  useEffect(() => {
+    const migrateData = async () => {
+      const isMigrated = localStorage.getItem('shadow-reader-db-migrated');
+      if (isMigrated === 'true') {
+        // Already migrated, just fetch
+        fetchNotes();
+        fetchVoices();
+        return;
+      }
+
+      setIsMigrating(true);
+      try {
+        const localNotes = getStorageItem<Note[]>(STORAGE_KEYS.NOTES, INITIAL_NOTES);
+        const localVoices = getStorageItem<VoiceItem[]>(STORAGE_KEYS.SAVED_VOICES, []);
+        const localAssociations = getStorageItem<Record<string, string[]>>(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, {});
+        const localSettings = getStorageItem<any>(STORAGE_KEYS.SHADOW_SETTINGS, {});
+
+        const response = await fetch(`${getApiBaseUrl()}/api/migrate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            notes: localNotes,
+            voices: localVoices,
+            associations: localAssociations,
+            settings: localSettings
+          })
+        });
+
+        if (response.ok) {
+          localStorage.setItem('shadow-reader-db-migrated', 'true');
+          console.log('Migration successful');
+        }
+      } catch (error) {
+        console.error('Migration failed:', error);
+      } finally {
+        setIsMigrating(false);
+        fetchNotes();
+        fetchVoices();
+        fetchAssociations();
+      }
+    };
+
+    migrateData();
+  }, []);
+
+  const fetchNotes = async () => {
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/notes`);
+      if (response.ok) {
+        const data = await response.json();
+        setNotes(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch notes:', error);
+    }
+  };
+
+  const fetchVoices = async () => {
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/voices`);
+      if (response.ok) {
+        const data = await response.json();
+        setSavedVoices(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch voices:', error);
+    }
+  };
+
+  const fetchAssociations = async () => {
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/associations`);
+      if (response.ok) {
+        const data = await response.json();
+        setSentenceVoiceAssociations(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch associations:', error);
+    }
+  };
+
+  const handleUpdateAssociations = async (sentenceKey: string, voiceIds: string[]) => {
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/associations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sentenceKey, voiceIds })
+      });
+      if (response.ok) {
+        setSentenceVoiceAssociations(prev => ({
+          ...prev,
+          [sentenceKey]: voiceIds
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to update associations:', error);
+    }
+  };
+
   const [activeVoice, setActiveVoice] = useState<VoiceItem | null>(null);
   const [editingVoice, setEditingVoice] = useState<VoiceItem | null>(null);
   const [editingFromPlayback, setEditingFromPlayback] = useState(false);
@@ -4006,18 +4098,14 @@ export default function App() {
     getStorageItem<Record<string, LyricSegment[]>>(STORAGE_KEYS.EDITED_TIMESTAMPS, {})
   );
 
-  // Persistence: Save to localStorage when state changes
+  // Persistence: Save to DB when state changes
   useEffect(() => {
-    setStorageItem(STORAGE_KEYS.NOTES, notes);
+    // Only save if we have notes and not during initial migration
+    if (notes.length > 0 && !isMigrating) {
+      // Note: In a real app, we would only save the specific note being edited
+      // For now, we keep it simple since handleUpdateNote already exists
+    }
   }, [notes]);
-
-  useEffect(() => {
-    setStorageItem(STORAGE_KEYS.SAVED_VOICES, savedVoices);
-  }, [savedVoices]);
-
-  useEffect(() => {
-    setStorageItem(STORAGE_KEYS.EDITED_TIMESTAMPS, editedTimestamps);
-  }, [editedTimestamps]);
 
   // Handlers
   const handleNavigateToShadow = (text: string) => {
@@ -4054,24 +4142,39 @@ export default function App() {
     setNotesView('detail');
   };
 
-  const handleDeleteNote = (id: string) => {
-    setNotes(notes.filter(n => n.id !== id));
-    if (selectedNote?.id === id) {
-      setNotesView('list');
-      setSelectedNote(null);
+  const handleDeleteNote = async (id: string) => {
+    try {
+      await fetch(`${getApiBaseUrl()}/api/notes/${id}`, { method: 'DELETE' });
+      setNotes(notes.filter(n => n.id !== id));
+      if (selectedNote?.id === id) {
+        setNotesView('list');
+        setSelectedNote(null);
+      }
+    } catch (error) {
+      console.error('Failed to delete note:', error);
     }
   };
 
-  const handleUpdateNote = (updatedNote: Note) => {
-    if (isNewNote) {
-      // Add new note to the list
-      setNotes([updatedNote, ...notes]);
-      setIsNewNote(false);
-    } else {
-      // Update existing note
-      setNotes(notes.map(n => n.id === updatedNote.id ? updatedNote : n));
+  const handleUpdateNote = async (updatedNote: Note) => {
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedNote)
+      });
+      if (response.ok) {
+        const savedNote = await response.json();
+        if (isNewNote) {
+          setNotes([savedNote, ...notes]);
+          setIsNewNote(false);
+        } else {
+          setNotes(notes.map(n => n.id === savedNote.id ? savedNote : n));
+        }
+        setSelectedNote(savedNote);
+      }
+    } catch (error) {
+      console.error('Failed to update note:', error);
     }
-    setSelectedNote(updatedNote);
   };
 
   const handleSelectNote = (note: Note) => {
@@ -4095,7 +4198,7 @@ Shadowing Practice
     setNotes([newNote, ...notes]);
   };
 
-  const handleSaveVoice = (audioUrl: string, duration: number, text: string, customName?: string) => {
+  const handleSaveVoice = async (audioUrl: string, duration: number, text: string, customName?: string) => {
     // Default name: first 3 words of text
     const words = text.trim().split(/\s+/);
     const defaultName = words.slice(0, 3).join(' ') + (words.length > 3 ? '...' : '');
@@ -4110,15 +4213,48 @@ Shadowing Practice
       duration,
       text
     };
-    setSavedVoices([newVoice, ...savedVoices]);
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/voices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newVoice)
+      });
+      if (response.ok) {
+        const savedVoice = await response.json();
+        setSavedVoices([savedVoice, ...savedVoices]);
+      }
+    } catch (error) {
+      console.error('Failed to save voice:', error);
+    }
   };
 
-  const handleUpdateVoiceName = (id: string, newName: string) => {
-    setSavedVoices(savedVoices.map(v => v.id === id ? { ...v, title: newName } : v));
+  const handleUpdateVoiceName = async (id: string, newName: string) => {
+    const voice = savedVoices.find(v => v.id === id);
+    if (!voice) return;
+
+    const updatedVoice = { ...voice, title: newName };
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/voices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedVoice)
+      });
+      if (response.ok) {
+        setSavedVoices(savedVoices.map(v => v.id === id ? updatedVoice : v));
+      }
+    } catch (error) {
+      console.error('Failed to update voice name:', error);
+    }
   };
 
-  const handleDeleteVoice = (id: string) => {
-    setSavedVoices(savedVoices.filter(v => v.id !== id));
+  const handleDeleteVoice = async (id: string) => {
+    try {
+      await fetch(`${getApiBaseUrl()}/api/voices/${id}`, { method: 'DELETE' });
+      setSavedVoices(savedVoices.filter(v => v.id !== id));
+    } catch (error) {
+      console.error('Failed to delete voice:', error);
+    }
   };
 
   const handlePlayVoice = (voice: VoiceItem) => {
@@ -4172,6 +4308,8 @@ Shadowing Practice
                 savedVoices={savedVoices}
                 onPlayVoice={handlePlayVoice}
                 isTouch={isTouch}
+                sentenceVoiceAssociations={sentenceVoiceAssociations}
+                onUpdateAssociations={handleUpdateAssociations}
               />
             ) : null}
           </AnimatePresence>
