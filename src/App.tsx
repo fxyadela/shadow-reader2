@@ -638,7 +638,7 @@ const ShadowReader: React.FC<{
   const [soundEffect, setSoundEffect] = useState(savedSettings.soundEffect || 'none');
 
   // UI State
-  const [showAdvanced, setShowAdvanced] = useState(savedSettings.showAdvanced ?? false); // Default collapsed ("不下拉")
+  const [showAdvanced, setShowAdvanced] = useState(false); // Default collapsed ("不下拉")
   const [isLoading, setIsLoading] = useState(false);
 
   // Translation Language
@@ -649,10 +649,10 @@ const ShadowReader: React.FC<{
     const settings = {
       model, selectedVoice, speed, vol,
       pitch, emotion, modPitch, intensity, timbre, soundEffect,
-      showAdvanced, translationLang
+      translationLang
     };
     setStorageItem(STORAGE_KEYS.SHADOW_SETTINGS, settings);
-  }, [model, selectedVoice, speed, vol, pitch, emotion, modPitch, intensity, timbre, soundEffect, showAdvanced, translationLang]);
+  }, [model, selectedVoice, speed, vol, pitch, emotion, modPitch, intensity, timbre, soundEffect, translationLang]);
 
   // Shadowing State
   const [audioState, setAudioState] = useState<HTMLAudioElement | null>(null);
@@ -1418,11 +1418,12 @@ const ShadowReader: React.FC<{
 
         {(mode === 'edit' || mode === 'settings') && text.trim() && (
           <button
-            onClick={handleToSettings}
-            disabled={!text.trim()}
-            className="px-4 py-2 rounded-full bg-teal-500 font-semibold text-black hover:bg-teal-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={mode === 'settings' ? handleGenerate : handleToSettings}
+            disabled={!text.trim() || isLoading}
+            className="px-4 py-2 rounded-full bg-teal-500 font-semibold text-black hover:bg-teal-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            Next
+            {isLoading && mode === 'settings' && <Loader2 size={16} className="animate-spin" />}
+            {mode === 'settings' ? (isLoading ? 'Generating...' : 'Next') : 'Next'}
           </button>
         )}
 
@@ -1496,39 +1497,39 @@ const ShadowReader: React.FC<{
               exit={{ opacity: 0 }}
               className="max-w-xl mx-auto flex flex-col h-full"
             >
-              <div className="relative flex-1 min-h-0 mt-6 pb-20">
+              <div className="flex justify-end items-center gap-2 px-2 mt-6 h-10">
+                {text.trim() && (
+                  <div className="relative group">
+                    <button
+                      onClick={() => setShowLangPopup(!showLangPopup)}
+                      className={`p-1.5 rounded-full transition-colors ${isTextTranslated ? 'text-teal-400 bg-teal-900/30' : 'text-neutral-400 hover:text-white bg-neutral-700/50 hover:bg-neutral-600'}`}
+                      title={isTextTranslated ? "Restore original text" : "Translate"}
+                    >
+                      {isTranslating ? <Loader2 size={16} className="animate-spin" /> : <Languages size={16} />}
+                    </button>
+                    <div className={`absolute top-full right-0 mt-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-top-right transition-opacity ${isTouch ? (showLangPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
+                      <button onClick={() => { handleTranslate('zh'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'zh' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇨🇳</button>
+                      <button onClick={() => { handleTranslate('ja'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ja' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇯🇵</button>
+                      <button onClick={() => { handleTranslate('ko'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ko' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇰🇷</button>
+                    </div>
+                  </div>
+                )}
+                {text && (
+                  <button
+                    onClick={() => setText('')}
+                    className="p-1.5 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-white transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              <div className="relative flex-1 min-h-0 pb-20">
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  className="w-full h-full bg-transparent text-neutral-200 py-2 px-6 pr-20 outline-none resize-none text-xl font-semibold leading-relaxed placeholder:text-neutral-600 placeholder:font-semibold placeholder:text-left text-left overflow-y-auto"
+                  className="w-full h-full bg-transparent text-neutral-200 py-2 px-6 outline-none resize-none text-xl font-semibold leading-relaxed placeholder:text-neutral-600 placeholder:font-semibold placeholder:text-left text-left overflow-y-auto"
                   placeholder="Paste your learning material here..."
                 />
-                <div className="absolute top-0 right-0 p-2 bg-gradient-to-l from-black/60 to-transparent backdrop-blur-sm flex gap-2">
-                  {text.trim() && (
-                    <div className="relative group">
-                      <button
-                        onClick={() => setShowLangPopup(!showLangPopup)}
-                        className={`p-1.5 rounded-full transition-colors ${isTextTranslated ? 'text-teal-400 bg-teal-900/30' : 'text-neutral-400 hover:text-white bg-neutral-700/50 hover:bg-neutral-600'}`}
-                        title={isTextTranslated ? "Restore original text" : "Translate"}
-                      >
-                        {isTranslating ? <Loader2 size={16} className="animate-spin" /> : <Languages size={16} />}
-                      </button>
-                      <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-bottom-right transition-opacity ${isTouch ? (showLangPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
-                        <button onClick={() => { handleTranslate('zh'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'zh' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇨🇳</button>
-                        <button onClick={() => { handleTranslate('ja'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ja' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇯🇵</button>
-                        <button onClick={() => { handleTranslate('ko'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ko' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇰🇷</button>
-                      </div>
-                    </div>
-                  )}
-                  {text && (
-                    <button
-                      onClick={() => setText('')}
-                      className="p-1.5 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-white transition-colors"
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
-                </div>
               </div>
             </motion.div>
           )}
@@ -1541,7 +1542,7 @@ const ShadowReader: React.FC<{
               exit={{ opacity: 0, x: -20 }}
               className="max-w-xl mx-auto flex flex-col h-full overflow-hidden"
             >
-              <div className="flex-1 overflow-y-auto space-y-8 pb-4">
+              <div className="flex-1 overflow-y-auto space-y-8 pb-32">
               {/* Controls */}
               <div className="space-y-6">
                 
@@ -1830,6 +1831,9 @@ const ShadowReader: React.FC<{
                   </AnimatePresence>
                 </div>
               </div>
+
+              {/* CTA Removed: Moved to Header Next Button */}
+              </div>
             </motion.div>
           )}
 
@@ -1839,7 +1843,7 @@ const ShadowReader: React.FC<{
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-x-0 top-[72px] bottom-16 overflow-y-auto no-scrollbar pb-48 px-2 [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)] scroll-smooth"
+              className="fixed inset-x-0 top-[72px] bottom-16 overflow-y-auto no-scrollbar pb-48 px-8 [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)] scroll-smooth"
               ref={containerRef}
               style={{ scrollBehavior: 'smooth' }}
             >
@@ -2643,6 +2647,7 @@ const NotesDetail: React.FC<{
                                     isTouch={isTouch}
                                     closeOtherDropdown={() => setOpenPlayDropdown(null)}
                                     closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                                    align="right"
                                   />
                                   <button
                                     onClick={() => onNavigateToShadow(msg.correction!)}
@@ -2673,6 +2678,7 @@ const NotesDetail: React.FC<{
                                   isTouch={isTouch}
                                   closeOtherDropdown={() => setOpenPlayDropdown(null)}
                                   closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                                  align="right"
                                 />
                                 <button
                                   onClick={() => onNavigateToShadow(msg.text)}
@@ -2734,6 +2740,7 @@ const NotesDetail: React.FC<{
                           isTouch={isTouch}
                           closeOtherDropdown={() => setOpenPlayDropdown(null)}
                           closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                          align="right"
                         />
                         <button
                           onClick={() => onNavigateToShadow(item.improved)}
@@ -2805,6 +2812,7 @@ const NotesDetail: React.FC<{
                                       isTouch={isTouch}
                                       closeOtherDropdown={() => setOpenPlayDropdown(null)}
                                       closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                                      align="right"
                                     />
                                     <button
                                       onClick={() => onNavigateToShadow(ex)}
@@ -2871,6 +2879,7 @@ const NotesDetail: React.FC<{
                           isTouch={isTouch}
                           closeOtherDropdown={() => setOpenPlayDropdown(null)}
                           closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                          direction="up"
                         />
                         <button
                           onClick={() => onNavigateToShadow(item.text)}
@@ -2929,6 +2938,8 @@ const NotesDetail: React.FC<{
                                 isTouch={isTouch}
                                 closeOtherDropdown={() => setOpenPlayDropdown(null)}
                                 closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                                align="right"
+                                direction="up"
                               />
                               <button
                                 onClick={() => onNavigateToShadow(s.text)}
@@ -3133,6 +3144,8 @@ interface VoiceDropdownProps {
   isTouch?: boolean;
   closeOtherDropdown?: () => void;
   closeMainDropdown?: () => void;
+  align?: 'left' | 'right' | 'center';
+  direction?: 'up' | 'down';
 }
 
 const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
@@ -3149,10 +3162,22 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
   onAddVoice,
   isTouch = false,
   closeOtherDropdown,
-  closeMainDropdown
+  closeMainDropdown,
+  align = 'left',
+  direction = 'down'
 }) => {
   const hasAssociated = associatedVoices.length > 0;
   const hasMultiple = associatedVoices.length > 1;
+
+  const alignmentClasses = align === 'center' 
+    ? 'left-1/2 -translate-x-1/2' 
+    : align === 'right' 
+      ? 'right-0' 
+      : 'left-0';
+  
+  const directionClasses = direction === 'up' 
+    ? 'bottom-full mb-1' 
+    : 'top-full mt-1';
 
   return (
     <div className="relative flex items-center gap-1 overflow-visible" onClick={(e) => e.stopPropagation()}>
@@ -3192,7 +3217,7 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
           {isPlayDropdownOpen && hasMultiple && (
             <div
               onClick={(e) => e.stopPropagation()}
-              className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:-translate-x-0 top-full mt-1 bg-neutral-800 rounded-xl border border-white/10 p-1 shadow-xl z-[60] w-[120px] sm:w-[150px] max-w-[calc(100vw-20px)]">
+              className={`absolute ${alignmentClasses} ${directionClasses} bg-neutral-800 rounded-xl border border-white/10 p-1 shadow-xl z-[60] w-[120px] sm:w-[150px] max-w-[calc(100vw-20px)]`}>
               {associatedVoices.map(voice => (
                 <button
                   key={voice.id}
@@ -3215,7 +3240,7 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
       {isOpen && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:-translate-x-0 top-full mt-1 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl z-50 w-[180px] sm:w-[200px] max-w-[calc(100vw-20px)]">
+          className={`absolute ${alignmentClasses} ${directionClasses} bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl z-50 w-[180px] sm:w-[200px] max-w-[calc(100vw-20px)]`}>
           {hasAssociated ? (
             <>
               {associatedVoices.map(voice => (
