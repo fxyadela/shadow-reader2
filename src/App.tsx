@@ -1875,6 +1875,18 @@ const NotesList: React.FC<{
   onSetFilterTag: (tag: string | null) => void,
   isTouch?: boolean
 }> = ({ notes, onSelectNote, onAddNote, onDeleteNote, filterTag, onSetFilterTag, isTouch = false }) => {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+
+  const handleDeleteClick = (id: string) => {
+    setShowDeleteConfirm(id);
+  };
+
+  const confirmDelete = () => {
+    if (showDeleteConfirm) {
+      onDeleteNote(showDeleteConfirm);
+      setShowDeleteConfirm(null);
+    }
+  };
 
   // Extract all unique tags
   const allTags = useMemo(() => {
@@ -1952,7 +1964,7 @@ const NotesList: React.FC<{
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        onDeleteNote(note.id);
+                        handleDeleteClick(note.id);
                       }}
                       className="p-1.5 text-neutral-600 hover:text-red-400 transition-opacity"
                     >
@@ -1971,6 +1983,43 @@ const NotesList: React.FC<{
           })
         )}
       </div>
+
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowDeleteConfirm(null)}
+          >
+            <motion.div
+              className="bg-[#18181b] border border-white/10 rounded-2xl p-6 w-full max-w-sm"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold text-white mb-2">Delete Note</h3>
+              <p className="text-neutral-400 text-sm mb-6">Are you sure you want to delete this note? This action cannot be undone.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(null)}
+                  className="flex-1 px-4 py-2 rounded-xl border border-white/10 text-neutral-300 hover:bg-white/5 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-500 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
@@ -1993,7 +2042,18 @@ const NotesDetail: React.FC<{
   const [isEditing, setIsEditing] = useState(note.rawContent === "");
   const [rawText, setRawText] = useState(note.rawContent);
   const [showToast, setShowToast] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const detailContentRef = useRef<HTMLDivElement>(null);
+
+  // Delete note with confirmation
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = () => {
+    setShowDeleteConfirm(false);
+    onDelete(note.id);
+  };
 
   // Export note detail as image - opens system share sheet
   const handleShareNote = async () => {
@@ -2264,6 +2324,28 @@ const NotesDetail: React.FC<{
           <Share size={18} />
         </button>
       </header>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="absolute inset-0 bg-black/60" onClick={() => setShowDeleteConfirm(false)} />
+            <motion.div className="relative bg-[#18181b] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+              <h3 className="text-lg font-semibold text-white mb-2">Delete Note</h3>
+              <p className="text-neutral-400 text-sm mb-6">Are you sure you want to delete this note? This action cannot be undone.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-2.5 rounded-full bg-neutral-800 text-neutral-300 font-medium hover:bg-neutral-700">Cancel</button>
+                <button onClick={confirmDelete} className="flex-1 py-2.5 rounded-full bg-red-600 text-white font-medium hover:bg-red-500">Delete</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div ref={detailContentRef} className="bg-[#09090b]">
         {isEditing ? (
@@ -3004,6 +3086,19 @@ const VoiceCollection: React.FC<{
 }> = ({ voices, onDeleteVoice, onPlayVoice, onUpdateVoiceName, onEditTimestamps, isTouch = false }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+
+  const handleDeleteClick = (id: string) => {
+    setShowDeleteConfirm(id);
+  };
+
+  const confirmDelete = () => {
+    if (showDeleteConfirm) {
+      onDeleteVoice(showDeleteConfirm);
+      setShowDeleteConfirm(null);
+    }
+  };
+
   return (
     <motion.div 
       className="min-h-screen bg-[#09090b] text-[#e4e4e7] p-4 pb-24"
@@ -3054,27 +3149,18 @@ const VoiceCollection: React.FC<{
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        // Delay to prevent white screen on mobile
-                        setTimeout(() => {
-                          onDeleteVoice(voice.id);
-                        }, 50);
-                        return false;
+                        handleDeleteClick(voice.id);
                       }}
                       onTouchEnd={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        setTimeout(() => {
-                          onDeleteVoice(voice.id);
-                        }, 50);
-                        return false;
+                        handleDeleteClick(voice.id);
                       }}
                       onContextMenu={(e) => {
                         if (isTouch) {
                           e.preventDefault();
                           e.stopPropagation();
-                          setTimeout(() => {
-                            onDeleteVoice(voice.id);
-                          }, 50);
+                          handleDeleteClick(voice.id);
                         }
                       }}
                       className={`p-1 text-neutral-600 hover:text-red-400 transition-opacity ${
@@ -3159,6 +3245,43 @@ const VoiceCollection: React.FC<{
           })
         )}
       </div>
+
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowDeleteConfirm(null)}
+          >
+            <motion.div
+              className="bg-[#18181b] border border-white/10 rounded-2xl p-6 w-full max-w-sm"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold text-white mb-2">Delete Voice</h3>
+              <p className="text-neutral-400 text-sm mb-6">Are you sure you want to delete this voice? This action cannot be undone.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(null)}
+                  className="flex-1 px-4 py-2 rounded-xl border border-white/10 text-neutral-300 hover:bg-white/5 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-500 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
