@@ -1412,6 +1412,16 @@ const ShadowReader: React.FC<{
           <p className="text-neutral-500 text-sm">Practice speaking every day</p>
         </div>
 
+        {(mode === 'edit' || mode === 'settings') && text.trim() && (
+          <button
+            onClick={handleToSettings}
+            disabled={!text.trim()}
+            className="px-4 py-2 rounded-full bg-teal-500 font-semibold text-black hover:bg-teal-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        )}
+
         {mode === 'shadowing' && (
           <div className="flex items-center gap-2">
             {playbackMode && onEditTimestamps && (
@@ -1472,7 +1482,7 @@ const ShadowReader: React.FC<{
         )}
       </header>
 
-      <main className="px-6 pt-6 h-[calc(100vh-140px)] overflow-hidden">
+      <main className="px-6 pt-4 h-[calc(100dvh-72px-64px)] overflow-hidden">
         <AnimatePresence mode="wait">
           {mode === 'edit' && (
             <motion.div
@@ -1486,7 +1496,7 @@ const ShadowReader: React.FC<{
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  className="w-full h-full bg-neutral-900/50 text-neutral-200 p-6 pr-24 rounded-3xl border border-white/10 focus:border-teal-500/50 outline-none resize-none text-lg leading-relaxed placeholder:text-neutral-600 overflow-y-auto"
+                  className="w-full h-full bg-transparent text-neutral-200 p-4 pr-24 outline-none resize-none text-lg leading-relaxed placeholder:text-neutral-500 placeholder:font-semibold placeholder:text-left overflow-y-auto"
                   placeholder="Paste your learning material here..."
                 />
                 <div className="absolute bottom-4 right-4 flex gap-2">
@@ -1516,13 +1526,6 @@ const ShadowReader: React.FC<{
                   )}
                 </div>
               </div>
-              <button
-                onClick={handleToSettings}
-                disabled={!text.trim()}
-                className="w-full rounded-full bg-teal-500 py-4 px-8 font-semibold text-black hover:bg-teal-400 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-teal-500/20"
-              >
-                Next <ArrowRight size={20} />
-              </button>
             </motion.div>
           )}
 
