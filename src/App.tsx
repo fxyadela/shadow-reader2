@@ -1837,7 +1837,6 @@ const ShadowReader: React.FC<{
                         </div>
                       </motion.div>
                     )}
-                  </AnimatePresence>
                 </div>
               </div>
 
