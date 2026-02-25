@@ -2019,7 +2019,7 @@ const NotesList: React.FC<{
       </header>
 
       {/* Tags Filter */}
-      <div className="flex gap-2 mb-6 overflow-x-auto px-2 pb-2 no-scrollbar items-center pointer-events-auto">
+      <div className="flex gap-2 mb-6 overflow-x-auto px-2 pb-2 no-scrollbar items-center">
         <button
           onClick={() => onSetFilterTag(null)}
           className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${!filterTag ? 'bg-white text-black' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
@@ -2050,7 +2050,14 @@ const NotesList: React.FC<{
               More
             </button>
             {showMoreTags && (
-              <div className="absolute top-full left-0 mt-2 bg-[#18181b] border border-white/10 rounded-xl p-2 shadow-xl z-[100] min-w-[150px]">
+              <div
+                className="fixed bg-[#18181b] border border-white/10 rounded-xl p-2 shadow-xl z-[100] min-w-[150px]"
+                style={{
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)'
+                }}
+              >
                 {allTags.slice(3).map(tag => (
                   <button
                     key={tag}
