@@ -593,8 +593,9 @@ const ShadowReader: React.FC<{
   playbackMode?: boolean,
   initialAudioUrl?: string,
   isTouch?: boolean,
-  initialSegments?: LyricSegment[]
-}> = ({ initialText, onBack, isStandalone, onSaveNote, onSaveVoice, playbackMode = false, initialAudioUrl, isTouch = false, initialSegments }) => {
+  initialSegments?: LyricSegment[],
+  onEditTimestamps?: () => void
+}> = ({ initialText, onBack, isStandalone, onSaveNote, onSaveVoice, playbackMode = false, initialAudioUrl, isTouch = false, initialSegments, onEditTimestamps }) => {
   // Load settings from localStorage
   const savedSettings = getStorageItem<Record<string, any>>(STORAGE_KEYS.SHADOW_SETTINGS, {});
 
@@ -712,16 +713,37 @@ const ShadowReader: React.FC<{
           // Calculate target scroll position to center the element
           const targetScrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
 
-          // Use 'auto' for first scroll to immediately center, 'smooth' for subsequent
-          const isFirstScroll = currentSegmentIndex === 0 && container.scrollTop < 10;
+          // Always use 'auto' for immediate centering
           container.scrollTo({
             top: targetScrollTop,
-            behavior: isFirstScroll ? 'auto' : 'smooth'
+            behavior: 'auto'
           });
         });
       });
     }
   }, [currentSegmentIndex, mode]);
+
+  // Initial scroll when entering shadowing mode
+  useEffect(() => {
+    if (mode === 'shadowing' && segments.length > 0 && containerRef.current) {
+      // Scroll to first segment immediately when entering shadowing mode
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!containerRef.current || !itemRefs.current[0]) return;
+          const container = containerRef.current;
+          const element = itemRefs.current[0];
+          const containerHeight = container.clientHeight;
+          const elementHeight = element.clientHeight;
+          const elementTop = element.offsetTop;
+          const targetScrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
+          container.scrollTo({
+            top: targetScrollTop,
+            behavior: 'auto'
+          });
+        });
+      });
+    }
+  }, [mode, segments.length]);
 
   // Reset itemRefs when segments change (e.g., after editing)
   useEffect(() => {
@@ -739,24 +761,46 @@ const ShadowReader: React.FC<{
         setAudio(null); // Stop any existing audio
 
         const newAudio = new Audio(initialAudioUrl);
+        newAudio.preload = 'auto'; // Preload audio for faster startup
         setAudio(newAudio); // Assign immediately
 
-        const rawSegments = parseLyrics(initialText);
+        // Use edited timestamps if available, otherwise recalculate
+        if (initialSegments && initialSegments.length > 0) {
+          // Set segments immediately for instant display
+          setSegments(initialSegments);
+          // Set initial segment index to 0 immediately
+          setCurrentSegmentIndex(0);
 
-        newAudio.onloadedmetadata = () => {
-          const duration = newAudio.duration;
-          const timedSegments = calculateLyricsTimestamps(rawSegments, duration);
-          setSegments(timedSegments);
-          newAudio.currentTime = 0;
-          newAudio.play().catch(e => console.error("Playback failed:", e));
-          setIsPlaying(true);
-        };
+          newAudio.onloadedmetadata = () => {
+            newAudio.currentTime = 0;
+            newAudio.play().catch(e => console.error("Playback failed:", e));
+            setIsPlaying(true);
+          };
+        } else {
+          // Recalculate timestamps from text
+          const rawSegments = parseLyrics(initialText);
+          // Set initial segments (will be recalculated when duration is available)
+          setSegments(rawSegments.map((seg, idx) => ({
+            text: seg,
+            startTime: idx,
+            endTime: idx + 1
+          })));
+
+          newAudio.onloadedmetadata = () => {
+            const duration = newAudio.duration;
+            const timedSegments = calculateLyricsTimestamps(rawSegments, duration);
+            setSegments(timedSegments);
+            newAudio.currentTime = 0;
+            newAudio.play().catch(e => console.error("Playback failed:", e));
+            setIsPlaying(true);
+          };
+        }
       } else {
         // Show edit mode so user can edit the text
         setMode('edit');
       }
     }
-  }, [initialText, playbackMode, initialAudioUrl]);
+  }, [initialText, playbackMode, initialAudioUrl, initialSegments]);
 
   // Audio Time Update Listener
   useEffect(() => {
@@ -764,13 +808,24 @@ const ShadowReader: React.FC<{
 
     const handleTimeUpdate = () => {
       const currentTime = audio.currentTime;
-      
-      // Find current segment
+
+      // Find current segment (use <= on endTime to catch boundary cases)
       const activeIndex = segments.findIndex(
-        seg => currentTime >= seg.startTime && currentTime < seg.endTime
+        seg => currentTime >= seg.startTime && currentTime <= seg.endTime
       );
-      
+
       if (activeIndex !== -1 && activeIndex !== currentSegmentIndex) {
+        setCurrentSegmentIndex(activeIndex);
+      }
+    };
+
+    const handlePlay = () => {
+      // Immediately update segment when playback starts
+      const currentTime = audio.currentTime;
+      const activeIndex = segments.findIndex(
+        seg => currentTime >= seg.startTime && currentTime <= seg.endTime
+      );
+      if (activeIndex !== -1) {
         setCurrentSegmentIndex(activeIndex);
       }
     };
@@ -781,10 +836,12 @@ const ShadowReader: React.FC<{
     };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('play', handlePlay);
     audio.addEventListener('ended', handleEnded);
-    
+
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('ended', handleEnded);
     };
   }, [audio, segments, currentSegmentIndex]);
@@ -1311,42 +1368,51 @@ const ShadowReader: React.FC<{
 
         {mode === 'shadowing' && (
           <div className="flex items-center gap-2">
-            {!playbackMode && (
+            {playbackMode && onEditTimestamps && (
               <button
-                onClick={handleSaveAll}
-                className={`p-2 rounded-full transition-all duration-500 ${
-                  saveStatus === 'success'
-                    ? 'bg-teal-500 text-white scale-110 shadow-[0_0_15px_rgba(20,184,166,0.5)]'
-                    : 'hover:bg-white/10 text-teal-400 hover:text-teal-300'
-                }`}
-                title="Save All"
+                onClick={onEditTimestamps}
+                className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                title="Edit Timestamps"
               >
-                {saveStatus === 'success' ? (
-                  <Check size={20} className="animate-in zoom-in duration-300" />
-                ) : saveStatus === 'saving' ? (
-                  <Loader2 size={20} className="animate-spin" />
-                ) : (
-                  <Save size={20} />
-                )}
+                <Clock size={20} />
+              </button>
+            )}
+            {!playbackMode && (
+              <>
+                <button
+                  onClick={handleSaveAll}
+                  className={`p-2 rounded-full transition-all duration-500 ${
+                    saveStatus === 'success'
+                      ? 'bg-teal-500 text-white scale-110 shadow-[0_0_15px_rgba(20,184,166,0.5)]'
+                      : 'hover:bg-white/10 text-teal-400 hover:text-teal-300'
+                  }`}
+                  title="Save All"
+                >
+                  {saveStatus === 'success' ? (
+                    <Check size={20} className="animate-in zoom-in duration-300" />
+                  ) : saveStatus === 'saving' ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    <Save size={20} />
+                  )}
                 </button>
-              )}
-              {!playbackMode && (
                 <button onClick={handleBackToEdit} className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors">
                   <Edit3 size={20} />
                 </button>
-              )}
-              <button
-                onClick={() => {
-                  setEditedSegments(segments.map(s => ({ text: s.text, start: s.start, end: s.end })));
-                  setShowSegmentEditor(true);
-                }}
-                className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
-                title="Edit Segments"
-              >
-                <List size={20} />
-              </button>
-            </div>
-          )}
+                <button
+                  onClick={() => {
+                    setEditedSegments(segments.map(s => ({ text: s.text, start: s.start, end: s.end })));
+                    setShowSegmentEditor(true);
+                  }}
+                  className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                  title="Edit Segments"
+                >
+                  <List size={20} />
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </header>
 
       <main className="px-6 pt-6">
@@ -1649,12 +1715,12 @@ const ShadowReader: React.FC<{
               {segments.length > 0 ? (
                 <div className="space-y-8 py-[40vh]">
                   {segments.map((seg, idx) => (
-                    <div 
+                    <div
                       key={idx}
                       ref={el => itemRefs.current[idx] = el}
                       className={`transition-all duration-500 cursor-pointer group ${
-                        idx === currentSegmentIndex 
-                          ? 'scale-100 opacity-100 blur-0' 
+                        isPlaying && idx === currentSegmentIndex
+                          ? 'scale-100 opacity-100 blur-0'
                           : 'scale-95 opacity-40 blur-[1px] hover:opacity-70 hover:blur-0'
                       }`}
                       onClick={() => playSegment(idx)}
@@ -1662,7 +1728,7 @@ const ShadowReader: React.FC<{
                       <div className="flex justify-between items-start gap-4">
                         <div className="flex-1 text-center">
                           <p className={`text-2xl md:text-3xl font-bold leading-relaxed transition-colors duration-500 whitespace-pre-wrap break-normal ${
-                            idx === currentSegmentIndex ? 'text-white' : 'text-neutral-400'
+                            isPlaying && idx === currentSegmentIndex ? 'text-white' : 'text-neutral-400'
                           }`}>
                             {seg.text}
                           </p>
@@ -3135,8 +3201,9 @@ const TimestampEditor: React.FC<{
   audioUrl: string;
   onSave: (segments: LyricSegment[]) => void;
   onClose: () => void;
+  onBack?: () => void;
   isTouch?: boolean;
-}> = ({ voice, initialSegments, audioUrl, onSave, onClose, isTouch = false }) => {
+}> = ({ voice, initialSegments, audioUrl, onSave, onClose, onBack, isTouch = false }) => {
   // Use initialSegments if provided, otherwise parse from voice text
   const [segments, setSegments] = useState<LyricSegment[]>(initialSegments);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
@@ -3258,6 +3325,27 @@ const TimestampEditor: React.FC<{
     setSegments(newSegments);
   };
 
+  // Add a new empty row after current segment
+  const handleAddNew = (index: number) => {
+    const seg = segments[index];
+    const duration = seg.endTime - seg.startTime;
+    const newDuration = duration / 2;
+
+    const newSegments = [...segments];
+    newSegments[index] = {
+      ...seg,
+      endTime: seg.startTime + newDuration
+    };
+
+    newSegments.splice(index + 1, 0, {
+      text: '',
+      startTime: seg.startTime + newDuration,
+      endTime: seg.endTime
+    });
+
+    setSegments(newSegments);
+  };
+
   const handleSave = () => {
     // Recalculate timestamps proportionally based on text length to match audio
     const totalTextLength = segments.reduce((sum, s) => sum + s.text.length, 0);
@@ -3292,12 +3380,23 @@ const TimestampEditor: React.FC<{
     >
       {/* Header */}
       <header className="flex items-center justify-between p-4 border-b border-white/10">
-        <button
-          onClick={onClose}
-          className="p-2 rounded-full hover:bg-white/10 text-neutral-400"
-        >
-          <X size={24} />
-        </button>
+        <div className="flex items-center gap-2">
+          {onBack ? (
+            <button
+              onClick={onBack}
+              className="p-2 rounded-full hover:bg-white/10 text-neutral-400"
+            >
+              <ArrowLeft size={24} />
+            </button>
+          ) : (
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-white/10 text-neutral-400"
+            >
+              <X size={24} />
+            </button>
+          )}
+        </div>
         <h1 className="text-lg font-semibold text-white">Edit Timestamps</h1>
         <button
           onClick={handleSave}
@@ -3341,15 +3440,17 @@ const TimestampEditor: React.FC<{
           <div
             key={idx}
             ref={el => itemRefs.current[idx] = el}
-            onClick={() => handleSegmentClick(idx)}
-            className={`p-3 rounded-xl border transition-all cursor-pointer ${
+            className={`p-3 rounded-xl border transition-all ${
               idx === currentSegmentIndex
                 ? 'bg-teal-950/30 border-teal-500/50'
                 : 'bg-neutral-900/50 border-white/10 hover:border-white/20'
             }`}
           >
             <div className="flex items-start gap-2">
-              <span className="text-xs font-mono text-neutral-500 min-w-[40px]">
+              <span
+                onClick={() => handleSegmentClick(idx)}
+                className="text-xs font-mono text-neutral-500 min-w-[40px] cursor-pointer hover:text-teal-400"
+              >
                 {formatTime(seg.startTime)}
               </span>
               <textarea
@@ -3387,6 +3488,16 @@ const TimestampEditor: React.FC<{
                     <ChevronDown size={14} />
                   </button>
                 )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAddNew(idx);
+                  }}
+                  className="p-1 rounded hover:bg-white/10 text-neutral-500 hover:text-teal-400"
+                  title="Add new row"
+                >
+                  <Plus size={14} />
+                </button>
               </div>
             </div>
           </div>
@@ -3419,6 +3530,7 @@ export default function App() {
 
   const [activeVoice, setActiveVoice] = useState<VoiceItem | null>(null);
   const [editingVoice, setEditingVoice] = useState<VoiceItem | null>(null);
+  const [editingFromPlayback, setEditingFromPlayback] = useState(false);
   const [editedTimestamps, setEditedTimestamps] = useState<Record<string, LyricSegment[]>>(() =>
     getStorageItem<Record<string, LyricSegment[]>>(STORAGE_KEYS.EDITED_TIMESTAMPS, {})
   );
@@ -3537,8 +3649,9 @@ Shadowing Practice
     setShadowKey(prev => prev + 1);
   };
 
-  const handleEditTimestamps = (voice: VoiceItem) => {
+  const handleEditTimestamps = (voice: VoiceItem, fromPlayback: boolean = false) => {
     setEditingVoice(voice);
+    setEditingFromPlayback(fromPlayback);
   };
 
   const handleSaveTimestamps = (voiceId: string, segments: LyricSegment[]) => {
@@ -3595,6 +3708,7 @@ Shadowing Practice
             onBack={activeVoice ? () => setActiveTab('voice') : undefined}
             isTouch={isTouch}
             initialSegments={activeVoice ? editedTimestamps[activeVoice.id] : undefined}
+            onEditTimestamps={activeVoice ? () => handleEditTimestamps(activeVoice, true) : undefined}
           />
         );
       case 'voice':
@@ -3626,6 +3740,7 @@ Shadowing Practice
         audioUrl={editingVoice.audioUrl}
         onSave={(segments) => handleSaveTimestamps(editingVoice.id, segments)}
         onClose={handleCloseTimestampEditor}
+        onBack={editingFromPlayback ? handleCloseTimestampEditor : undefined}
         isTouch={isTouch}
       />
     );
