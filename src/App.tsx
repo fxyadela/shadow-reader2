@@ -1039,34 +1039,60 @@ const ShadowReader: React.FC<{
 
     setIsTranslating(true);
     try {
-      // Translate each segment individually using LibreTranslate
-      const translations: string[] = [];
+      let translations: string[] = [];
 
-      for (const segment of segments) {
+      if (segments.length > 0) {
+        // Translate each segment individually
+        for (const segment of segments) {
+          const response = await fetch(`${getApiBaseUrl()}/api/translate`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              text: segment.text,
+              targetLang: langToUse
+            })
+          });
+
+          const data = await response.json();
+          if (data.translatedText) {
+            translations.push(data.translatedText);
+          } else if (data.error) {
+            console.error('Translation API error:', data.error);
+            alert(`Translation failed: ${data.error}`);
+            translations.push(segment.text); // Fallback to original
+          } else {
+            translations.push(segment.text); // Fallback to original
+          }
+        }
+        setTranslatedSegments(translations);
+      } else {
+        // In edit mode - translate the whole text
         const response = await fetch(`${getApiBaseUrl()}/api/translate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            text: segment.text,
+            text: text,
             targetLang: langToUse
           })
         });
 
         const data = await response.json();
         if (data.translatedText) {
-          translations.push(data.translatedText);
+          setText(data.translatedText);
+          setIsTextTranslated(true);
+          setIsTranslating(false);
+          return;
         } else if (data.error) {
           console.error('Translation API error:', data.error);
           alert(`Translation failed: ${data.error}`);
-          translations.push(segment.text); // Fallback to original
-        } else {
-          translations.push(segment.text); // Fallback to original
+          setIsTranslating(false);
+          return;
         }
       }
-
-      setTranslatedSegments(translations);
 
       // Replace text with translation
       const translatedText = translations.join('\n');
@@ -1385,6 +1411,32 @@ const ShadowReader: React.FC<{
           <h1 className="text-2xl font-bold text-white mb-1">Shadow Reader</h1>
           <p className="text-neutral-500 text-sm">Practice speaking every day</p>
         </div>
+
+        {mode === 'edit' && text.trim() && (
+          <div className="relative group">
+            <button
+              onClick={() => setShowLangPopup(!showLangPopup)}
+              className={`p-2 rounded-full transition-colors ${isTextTranslated ? 'text-teal-400 bg-teal-900/30' : 'text-neutral-400 hover:text-white'}`}
+              title={isTextTranslated ? "Restore original text" : "Translate"}
+            >
+              {isTranslating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}
+            </button>
+            <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-bottom-right transition-opacity ${isTouch ? (showLangPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
+              <button onClick={() => { handleTranslate('zh'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'zh' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
+                <span>🇨🇳</span>
+                {translationLang === 'zh' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
+              </button>
+              <button onClick={() => { handleTranslate('ja'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'ja' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
+                <span>🇯🇵</span>
+                {translationLang === 'ja' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
+              </button>
+              <button onClick={() => { handleTranslate('ko'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'ko' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
+                <span>🇰🇷</span>
+                {translationLang === 'ko' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
+              </button>
+            </div>
+          </div>
+        )}
 
         {mode === 'shadowing' && (
           <div className="flex items-center gap-2">
