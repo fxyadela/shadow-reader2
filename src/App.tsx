@@ -3126,12 +3126,12 @@ const VoiceCollection: React.FC<{
                 )}
 
                 <div className="flex items-center justify-between mt-4">
-                  {/* Play button */}
                   <button
                     onClick={() => onPlayVoice(voice)}
-                    className="p-4 bg-teal-600 hover:bg-teal-500 active:bg-teal-400 rounded-full transition-all"
+                    className="flex items-center gap-2 px-4 py-2 text-neutral-400 hover:text-teal-400 transition-colors"
                   >
-                    <Play size={24} fill="currentColor" className="text-white" />
+                    <Play size={16} fill="currentColor" />
+                    <span className="text-xs font-medium">Play Session</span>
                   </button>
 
                   <div className="flex items-center gap-3">
