@@ -4056,7 +4056,16 @@ export default function App() {
 
   // API calling helper
   const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
-    const url = endpoint;
+    // Determine if we are on Vercel or Local
+    const isVercel = window.location.hostname.includes('vercel.app');
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.');
+    
+    let url = endpoint;
+    
+    // In local development, if we are on port 3000 (Vite), we need to proxy to 3001
+    // or use relative paths if Vite proxy is configured.
+    // On Vercel, relative paths /api/* will be handled by vercel.json rewrites.
+    
     setLastApiStatus(`Fetching ${url}...`);
     try {
       const response = await fetch(url, {
@@ -4071,6 +4080,10 @@ export default function App() {
         const errorText = await response.text();
         const errorMsg = `API Error ${response.status}: ${errorText || 'No detail'}`;
         setLastApiStatus(errorMsg);
+        // On Vercel, 404 might mean the serverless function isn't routing correctly
+        if (isVercel && response.status === 404) {
+          console.error('Vercel API Route not found. Check vercel.json.');
+        }
         throw new Error(errorMsg);
       }
       
@@ -4081,7 +4094,7 @@ export default function App() {
     } catch (error) {
       const errorMsg = `Failed ${url}: ${error instanceof Error ? error.message : String(error)}`;
       setLastApiStatus(errorMsg);
-      alert(errorMsg);
+      // alert(errorMsg);
       throw error;
     }
   };
