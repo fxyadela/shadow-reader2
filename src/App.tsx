@@ -1506,39 +1506,41 @@ const ShadowReader: React.FC<{
               exit={{ opacity: 0 }}
               className="max-w-xl mx-auto flex flex-col h-full"
             >
-              <div className="relative flex-1 min-h-0 mt-6 pb-20">
+              <div className="relative flex-1 min-h-0 mt-2 pb-20">
+                <div className="flex justify-end">
+                  <div className="flex gap-2 -mb-2 relative z-10">
+                    {text.trim() && (
+                      <div className="relative group">
+                        <button
+                          onClick={() => setShowLangPopup(!showLangPopup)}
+                          className={`p-1.5 rounded-full transition-colors ${isTextTranslated ? 'text-teal-400 bg-teal-900/30' : 'text-neutral-400 hover:text-white bg-neutral-700/50 hover:bg-neutral-600'}`}
+                          title={isTextTranslated ? "Restore original text" : "Translate"}
+                        >
+                          {isTranslating ? <Loader2 size={16} className="animate-spin" /> : <Languages size={16} />}
+                        </button>
+                        <div className={`absolute top-full right-0 mt-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-top-right transition-opacity ${isTouch ? (showLangPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
+                          <button onClick={() => { handleTranslate('zh'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'zh' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇨🇳</button>
+                          <button onClick={() => { handleTranslate('ja'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ja' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇯🇵</button>
+                          <button onClick={() => { handleTranslate('ko'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ko' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇰🇷</button>
+                        </div>
+                      </div>
+                    )}
+                    {text && (
+                      <button
+                        onClick={() => setText('')}
+                        className="p-1.5 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-white transition-colors"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  className="w-full h-full bg-transparent text-neutral-200 py-2 px-6 pr-20 outline-none resize-none text-xl font-semibold leading-relaxed placeholder:text-neutral-600 placeholder:font-semibold placeholder:text-left text-left overflow-y-auto"
+                  className="w-full h-full bg-transparent text-neutral-200 py-2 px-6 outline-none resize-none text-xl font-semibold leading-relaxed placeholder:text-neutral-600 placeholder:font-semibold placeholder:text-left text-left overflow-y-auto"
                   placeholder="Paste your learning material here..."
                 />
-                <div className="absolute top-0 right-0 p-2 bg-gradient-to-l from-black/60 to-transparent backdrop-blur-sm flex gap-2">
-                  {text.trim() && (
-                    <div className="relative group">
-                      <button
-                        onClick={() => setShowLangPopup(!showLangPopup)}
-                        className={`p-1.5 rounded-full transition-colors ${isTextTranslated ? 'text-teal-400 bg-teal-900/30' : 'text-neutral-400 hover:text-white bg-neutral-700/50 hover:bg-neutral-600'}`}
-                        title={isTextTranslated ? "Restore original text" : "Translate"}
-                      >
-                        {isTranslating ? <Loader2 size={16} className="animate-spin" /> : <Languages size={16} />}
-                      </button>
-                      <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-bottom-right transition-opacity ${isTouch ? (showLangPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
-                        <button onClick={() => { handleTranslate('zh'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'zh' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇨🇳</button>
-                        <button onClick={() => { handleTranslate('ja'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ja' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇯🇵</button>
-                        <button onClick={() => { handleTranslate('ko'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ko' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇰🇷</button>
-                      </div>
-                    </div>
-                  )}
-                  {text && (
-                    <button
-                      onClick={() => setText('')}
-                      className="p-1.5 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-white transition-colors"
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
-                </div>
               </div>
             </motion.div>
           )}
@@ -1552,14 +1554,14 @@ const ShadowReader: React.FC<{
               className="max-w-xl mx-auto flex flex-col h-full overflow-hidden"
             >
               <div className="flex-1 overflow-y-auto space-y-8 pb-4">
-              {/* Controls */}
-              <div className="space-y-6">
-                
-                {/* --- Basic Settings --- */}
+                {/* Controls */}
                 <div className="space-y-6">
-                  {/* Model */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-neutral-400 ml-1">Model</label>
+
+                  {/* --- Basic Settings --- */}
+                  <div className="space-y-6">
+                    {/* Model */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-neutral-400 ml-1">Model</label>
                     <div className="relative">
                       <button
                         onClick={() => setShowModelDropdown(!showModelDropdown)}
@@ -1840,6 +1842,8 @@ const ShadowReader: React.FC<{
                   </AnimatePresence>
                 </div>
               </div>
+            </motion.div>
+          )}
 
           {mode === 'shadowing' && (
             <motion.div
@@ -1893,8 +1897,8 @@ const ShadowReader: React.FC<{
                   </div>
                 </div>
               )}
+              </motion.div>
             )}
-            </motion.div>
           </AnimatePresence>
         </main>
   
@@ -2959,7 +2963,6 @@ const NotesDetail: React.FC<{
 
         </main>
       )}
-      </div>
 
       {/* Hidden Audio Element */}
       <audio ref={detailAudioRef} />
