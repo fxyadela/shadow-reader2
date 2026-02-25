@@ -257,31 +257,6 @@ const useSwipeToBack = (onBack: () => void, enabled: boolean = true) => {
   };
 };
 
-// API calling helper
-const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
-  // Use relative URL to leverage Vite proxy in development, or current host in production
-  const url = endpoint;
-  console.log(`[API] Fetching ${url}`, options.method || 'GET');
-  try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[API] Error from ${url}:`, response.status, errorText);
-      throw new Error(`API Error ${response.status}: ${errorText}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error(`[API] Request failed for ${url}:`, error);
-    throw error;
-  }
-};
-
 // ==========================================
 // SHARED TYPES & CONSTANTS
 // ==========================================
@@ -664,6 +639,33 @@ const SOUND_EFFECTS = [
 
 const AUDIO_CACHE = new Map<string, string>();
 
+// API calling helper
+const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
+  const url = endpoint;
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      const errorMsg = `API Error ${response.status}: ${errorText || 'No detail'}`;
+      alert(`URL: ${url}\nError: ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    const errorMsg = `Failed ${url}: ${error instanceof Error ? error.message : String(error)}`;
+    alert(`URL: ${url}\nError: ${errorMsg}`);
+    throw error;
+  }
+};
+
 const ShadowReader: React.FC<{
   initialText?: string,
   onBack?: () => void,
@@ -674,8 +676,13 @@ const ShadowReader: React.FC<{
   initialAudioUrl?: string,
   isTouch?: boolean,
   initialSegments?: LyricSegment[],
-  onEditTimestamps?: () => void
-}> = ({ initialText, onBack, isStandalone, onSaveNote, onSaveVoice, playbackMode = false, initialAudioUrl, isTouch = false, initialSegments, onEditTimestamps }) => {
+  onEditTimestamps?: () => void,
+  apiFetch?: (endpoint: string, options?: RequestInit) => Promise<any>
+}> = ({ initialText, onBack, isStandalone, onSaveNote, onSaveVoice, playbackMode = false, initialAudioUrl, isTouch = false, initialSegments, onEditTimestamps, apiFetch = async (url, options) => {
+  const response = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } });
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
+} }) => {
   // Load settings from localStorage
   const savedSettings = getStorageItem<Record<string, any>>(STORAGE_KEYS.SHADOW_SETTINGS, {});
 
@@ -4045,6 +4052,39 @@ export default function App() {
 
   const [isMigrating, setIsMigrating] = useState(false);
   const [sentenceVoiceAssociations, setSentenceVoiceAssociations] = useState<Record<string, string[]>>({});
+  const [lastApiStatus, setLastApiStatus] = useState<string | null>(null);
+
+  // API calling helper
+  const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
+    const url = endpoint;
+    setLastApiStatus(`Fetching ${url}...`);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        const errorMsg = `API Error ${response.status}: ${errorText || 'No detail'}`;
+        setLastApiStatus(errorMsg);
+        throw new Error(errorMsg);
+      }
+      
+      const data = await response.json();
+      setLastApiStatus(`Success: ${url}`);
+      setTimeout(() => setLastApiStatus(null), 3000);
+      return data;
+    } catch (error) {
+      const errorMsg = `Failed ${url}: ${error instanceof Error ? error.message : String(error)}`;
+      setLastApiStatus(errorMsg);
+      alert(errorMsg);
+      throw error;
+    }
+  };
 
   // Persistence: Fetch from DB on mount
   useEffect(() => {
@@ -4370,6 +4410,7 @@ Shadowing Practice
             isTouch={isTouch}
             initialSegments={activeVoice ? editedTimestamps[activeVoice.id] : undefined}
             onEditTimestamps={activeVoice ? () => handleEditTimestamps(activeVoice, true) : undefined}
+            apiFetch={apiFetch}
           />
         );
       case 'voice':
@@ -4412,6 +4453,26 @@ Shadowing Practice
       {renderContent()}
       {renderTimestampEditor()}
       {!editingVoice && <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />}
+      
+      {/* Mobile-friendly API Status Indicator */}
+      <AnimatePresence>
+        {lastApiStatus && (
+          <div className="fixed bottom-20 left-4 right-4 z-[9999] pointer-events-none">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className={`px-4 py-2 rounded-lg text-xs font-medium shadow-xl border backdrop-blur-md ${
+                lastApiStatus.includes('Failed') || lastApiStatus.includes('Error')
+                  ? 'bg-red-500/90 text-white border-red-400/50'
+                  : 'bg-teal-500/90 text-neutral-900 border-teal-400/50'
+              }`}
+            >
+              {lastApiStatus}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
