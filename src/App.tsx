@@ -1412,32 +1412,6 @@ const ShadowReader: React.FC<{
           <p className="text-neutral-500 text-sm">Practice speaking every day</p>
         </div>
 
-        {mode === 'edit' && text.trim() && (
-          <div className="relative group">
-            <button
-              onClick={() => setShowLangPopup(!showLangPopup)}
-              className={`p-2 rounded-full transition-colors ${isTextTranslated ? 'text-teal-400 bg-teal-900/30' : 'text-neutral-400 hover:text-white'}`}
-              title={isTextTranslated ? "Restore original text" : "Translate"}
-            >
-              {isTranslating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}
-            </button>
-            <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-bottom-right transition-opacity ${isTouch ? (showLangPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
-              <button onClick={() => { handleTranslate('zh'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'zh' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
-                <span>🇨🇳</span>
-                {translationLang === 'zh' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
-              </button>
-              <button onClick={() => { handleTranslate('ja'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'ja' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
-                <span>🇯🇵</span>
-                {translationLang === 'ja' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
-              </button>
-              <button onClick={() => { handleTranslate('ko'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'ko' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
-                <span>🇰🇷</span>
-                {translationLang === 'ko' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
-              </button>
-            </div>
-          </div>
-        )}
-
         {mode === 'shadowing' && (
           <div className="flex items-center gap-2">
             {playbackMode && onEditTimestamps && (
@@ -1508,17 +1482,44 @@ const ShadowReader: React.FC<{
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  className="w-full h-80 bg-neutral-900/50 text-neutral-200 p-6 pr-12 rounded-3xl border border-white/10 focus:border-teal-500/50 outline-none resize-none text-lg leading-relaxed placeholder:text-neutral-600"
+                  className="w-full h-80 bg-neutral-900/50 text-neutral-200 p-6 pr-24 rounded-3xl border border-white/10 focus:border-teal-500/50 outline-none resize-none text-lg leading-relaxed placeholder:text-neutral-600"
                   placeholder="Paste your learning material here..."
                 />
-                {text && (
-                  <button
-                    onClick={() => setText('')}
-                    className="absolute top-4 right-4 p-1.5 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-white transition-colors"
-                  >
-                    <X size={18} />
-                  </button>
-                )}
+                <div className="absolute bottom-4 right-4 flex gap-2">
+                  {text && (
+                    <button
+                      onClick={() => setText('')}
+                      className="p-1.5 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-white transition-colors"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                  {text.trim() && (
+                    <div className="relative group">
+                      <button
+                        onClick={() => setShowLangPopup(!showLangPopup)}
+                        className={`p-1.5 rounded-full transition-colors ${isTextTranslated ? 'text-teal-400 bg-teal-900/30' : 'text-neutral-400 hover:text-white bg-neutral-700/50 hover:bg-neutral-600'}`}
+                        title={isTextTranslated ? "Restore original text" : "Translate"}
+                      >
+                        {isTranslating ? <Loader2 size={16} className="animate-spin" /> : <Languages size={16} />}
+                      </button>
+                      <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-bottom-right transition-opacity ${isTouch ? (showLangPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
+                        <button onClick={() => { handleTranslate('zh'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'zh' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
+                          <span>🇨🇳</span>
+                          {translationLang === 'zh' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
+                        </button>
+                        <button onClick={() => { handleTranslate('ja'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'ja' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
+                          <span>🇯🇵</span>
+                          {translationLang === 'ja' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
+                        </button>
+                        <button onClick={() => { handleTranslate('ko'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'ko' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
+                          <span>🇰🇷</span>
+                          {translationLang === 'ko' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               <button
                 onClick={handleToSettings}
