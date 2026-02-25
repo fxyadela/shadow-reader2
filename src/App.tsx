@@ -1416,7 +1416,9 @@ const ShadowReader: React.FC<{
           <div className="flex items-center gap-2">
             {playbackMode && onEditTimestamps && (
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   // Pause audio before entering timestamp editor
                   if (audio) {
                     audio.pause();
@@ -1424,7 +1426,7 @@ const ShadowReader: React.FC<{
                   }
                   onEditTimestamps();
                 }}
-                className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors z-50 relative"
                 title="Edit Timestamps"
               >
                 <Clock size={20} />
@@ -1432,6 +1434,21 @@ const ShadowReader: React.FC<{
             )}
             {!playbackMode && (
               <>
+                {!pendingVoiceData && (
+                  <button onClick={handleBackToEdit} className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors">
+                    <ArrowLeft size={20} />
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setEditedSegments(segments.map(s => ({ text: s.text, start: s.start, end: s.end })));
+                    setShowSegmentEditor(true);
+                  }}
+                  className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                  title="Edit Segments"
+                >
+                  <Edit3 size={20} />
+                </button>
                 <button
                   onClick={handleSaveAll}
                   className={`p-2 rounded-full transition-all duration-500 ${
@@ -1448,19 +1465,6 @@ const ShadowReader: React.FC<{
                   ) : (
                     <Save size={20} />
                   )}
-                </button>
-                <button onClick={handleBackToEdit} className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors">
-                  <Edit3 size={20} />
-                </button>
-                <button
-                  onClick={() => {
-                    setEditedSegments(segments.map(s => ({ text: s.text, start: s.start, end: s.end })));
-                    setShowSegmentEditor(true);
-                  }}
-                  className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
-                  title="Edit Segments"
-                >
-                  <List size={20} />
                 </button>
               </>
             )}
