@@ -3999,6 +3999,7 @@ export default function App() {
         // Already migrated, just fetch
         fetchNotes();
         fetchVoices();
+        fetchAssociations();
         return;
       }
 
@@ -4039,7 +4040,7 @@ export default function App() {
 
   const fetchNotes = async () => {
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/notes`);
+      const response = await fetch('/api/notes');
       if (response.ok) {
         const data = await response.json();
         setNotes(data);
@@ -4051,7 +4052,7 @@ export default function App() {
 
   const fetchVoices = async () => {
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/voices`);
+      const response = await fetch('/api/voices');
       if (response.ok) {
         const data = await response.json();
         setSavedVoices(data);
@@ -4063,10 +4064,10 @@ export default function App() {
 
   const fetchAssociations = async () => {
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/associations`);
+      const response = await fetch('/api/associations');
       if (response.ok) {
         const data = await response.json();
-        setSentenceVoiceAssociations(data);
+        setSentenceVoiceAssociations(data || {});
       }
     } catch (error) {
       console.error('Failed to fetch associations:', error);
@@ -4074,8 +4075,9 @@ export default function App() {
   };
 
   const handleUpdateAssociations = async (sentenceKey: string, voiceIds: string[]) => {
+    if (!sentenceKey) return;
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/associations`, {
+      const response = await fetch('/api/associations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sentenceKey, voiceIds })
@@ -4144,8 +4146,8 @@ export default function App() {
 
   const handleDeleteNote = async (id: string) => {
     try {
-      await fetch(`${getApiBaseUrl()}/api/notes/${id}`, { method: 'DELETE' });
-      setNotes(notes.filter(n => n.id !== id));
+      await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+      setNotes(prev => prev.filter(n => n.id !== id));
       if (selectedNote?.id === id) {
         setNotesView('list');
         setSelectedNote(null);
@@ -4157,7 +4159,7 @@ export default function App() {
 
   const handleUpdateNote = async (updatedNote: Note) => {
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/notes`, {
+      const response = await fetch('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedNote)
@@ -4165,10 +4167,10 @@ export default function App() {
       if (response.ok) {
         const savedNote = await response.json();
         if (isNewNote) {
-          setNotes([savedNote, ...notes]);
+          setNotes(prev => [savedNote, ...prev]);
           setIsNewNote(false);
         } else {
-          setNotes(notes.map(n => n.id === savedNote.id ? savedNote : n));
+          setNotes(prev => prev.map(n => n.id === savedNote.id ? savedNote : n));
         }
         setSelectedNote(savedNote);
       }
@@ -4215,14 +4217,14 @@ Shadowing Practice
     };
 
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/voices`, {
+      const response = await fetch('/api/voices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newVoice)
       });
       if (response.ok) {
         const savedVoice = await response.json();
-        setSavedVoices([savedVoice, ...savedVoices]);
+        setSavedVoices(prev => [savedVoice, ...prev]);
       }
     } catch (error) {
       console.error('Failed to save voice:', error);
@@ -4235,13 +4237,13 @@ Shadowing Practice
 
     const updatedVoice = { ...voice, title: newName };
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/voices`, {
+      const response = await fetch('/api/voices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedVoice)
       });
       if (response.ok) {
-        setSavedVoices(savedVoices.map(v => v.id === id ? updatedVoice : v));
+        setSavedVoices(prev => prev.map(v => v.id === id ? updatedVoice : v));
       }
     } catch (error) {
       console.error('Failed to update voice name:', error);
@@ -4250,8 +4252,8 @@ Shadowing Practice
 
   const handleDeleteVoice = async (id: string) => {
     try {
-      await fetch(`${getApiBaseUrl()}/api/voices/${id}`, { method: 'DELETE' });
-      setSavedVoices(savedVoices.filter(v => v.id !== id));
+      await fetch(`/api/voices/${id}`, { method: 'DELETE' });
+      setSavedVoices(prev => prev.filter(v => v.id !== id));
     } catch (error) {
       console.error('Failed to delete voice:', error);
     }
@@ -4296,7 +4298,7 @@ Shadowing Practice
               />
             ) : selectedNote ? (
               <NotesDetail
-                key="detail"
+                key={selectedNote.id}
                 note={selectedNote}
                 onNavigateToShadow={handleNavigateToShadow}
                 onBack={() => {

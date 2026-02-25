@@ -12,8 +12,9 @@ const DB_FILE = path.resolve("data.json");
 async function getDB() {
   try {
     const data = await fs.readFile(DB_FILE, "utf-8");
+    if (!data.trim()) throw new Error("Empty DB file");
     return JSON.parse(data);
-  } catch {
+  } catch (error) {
     const initialData = { notes: [], voices: [], associations: {}, settings: {} };
     await fs.writeFile(DB_FILE, JSON.stringify(initialData, null, 2));
     return initialData;
