@@ -3536,8 +3536,10 @@ const VoiceCollection: React.FC<{
   onPlayVoice: (voice: VoiceItem) => void,
   onUpdateVoiceName?: (id: string, newName: string) => void,
   onEditTimestamps?: (voice: VoiceItem) => void,
+  onSync?: () => void,
+  isSyncing?: boolean,
   isTouch?: boolean
-}> = ({ voices, onDeleteVoice, onPlayVoice, onUpdateVoiceName, onEditTimestamps, isTouch = false }) => {
+}> = ({ voices, onDeleteVoice, onPlayVoice, onUpdateVoiceName, onEditTimestamps, onSync, isSyncing = false, isTouch = false }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
@@ -3560,9 +3562,21 @@ const VoiceCollection: React.FC<{
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, x: -20 }}
     >
-      <header className="mb-6 mt-4 px-2">
-        <h1 className="text-2xl font-bold text-white mb-1">Voice Collection</h1>
-        <p className="text-neutral-500 text-sm">Your saved shadowing sessions</p>
+      <header className="mb-6 mt-4 px-2 flex justify-between items-end">
+        <div>
+          <h1 className="text-2xl font-bold text-white mb-1">Voice Collection</h1>
+          <p className="text-neutral-500 text-sm">Your saved shadowing sessions</p>
+        </div>
+        {onSync && (
+          <button
+            onClick={onSync}
+            disabled={isSyncing}
+            className={`p-2 rounded-full transition-all ${isSyncing ? 'bg-teal-500/20 text-teal-400' : 'hover:bg-white/5 text-neutral-400 hover:text-white'}`}
+            title="Sync data"
+          >
+            <RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''} />
+          </button>
+        )}
       </header>
 
       <div className="space-y-4">
@@ -4140,6 +4154,7 @@ export default function App() {
   const [filterTag, setFilterTag] = useState<string | null>(null);
 
   const [isMigrating, setIsMigrating] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [sentenceVoiceAssociations, setSentenceVoiceAssociations] = useState<Record<string, string[]>>({});
   const [lastApiStatus, setLastApiStatus] = useState<string | null>(null);
 
@@ -4594,6 +4609,62 @@ Shadowing Practice
     }
   };
 
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      // 1. Fetch latest from server
+      const notesData = await apiFetch('/api/notes');
+      const voicesData = await apiFetch('/api/voices');
+      const assocData = await apiFetch('/api/associations');
+
+      // 2. Update Local State
+      if (notesData) setNotes(notesData);
+      if (voicesData) setSavedVoices(voicesData);
+      if (assocData) setSentenceVoiceAssociations(assocData);
+
+      // 3. Update Local Persistence
+      if (notesData) {
+        setStorageItem(STORAGE_KEYS.NOTES, notesData);
+        await setIDBItem(STORAGE_KEYS.NOTES, notesData);
+      }
+      if (voicesData) {
+        setStorageItem(STORAGE_KEYS.SAVED_VOICES, voicesData);
+        await setIDBItem(STORAGE_KEYS.SAVED_VOICES, voicesData);
+      }
+      if (assocData) {
+        setStorageItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, assocData);
+        await setIDBItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, assocData);
+      }
+
+      // Also try to push what's in local storage to server in case server was reset
+      const localNotes = await getIDBItem<Note[]>(STORAGE_KEYS.NOTES, []);
+      const localVoices = await getIDBItem<VoiceItem[]>(STORAGE_KEYS.SAVED_VOICES, []);
+      const localAssoc = await getIDBItem<Record<string, string[]>>(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, {});
+
+      if (localNotes.length > (notesData?.length || 0) || 
+          localVoices.length > (voicesData?.length || 0)) {
+        console.log('[Sync] Local data seems newer, pushing to server...');
+        await apiFetch('/api/migrate', {
+          method: 'POST',
+          body: JSON.stringify({
+            notes: localNotes,
+            voices: localVoices,
+            associations: localAssoc
+          })
+        });
+      }
+
+      setLastApiStatus('Sync successful');
+      setTimeout(() => setLastApiStatus(null), 3000);
+    } catch (error) {
+      console.error('Manual sync failed:', error);
+      setLastApiStatus('Sync failed');
+      setTimeout(() => setLastApiStatus(null), 3000);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleUpdateVoiceName = async (id: string, newName: string) => {
     const voice = savedVoices.find(v => v.id === id);
     if (!voice) return;
@@ -4709,6 +4780,8 @@ Shadowing Practice
             onPlayVoice={handlePlayVoice}
             onUpdateVoiceName={handleUpdateVoiceName}
             onEditTimestamps={handleEditTimestamps}
+            onSync={handleManualSync}
+            isSyncing={isSyncing}
             isTouch={isTouch}
           />
         );
