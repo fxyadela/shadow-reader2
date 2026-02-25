@@ -2019,24 +2019,24 @@ const NotesList: React.FC<{
       </header>
 
       {/* Tags Filter */}
-      <div className="flex flex-wrap gap-2 mb-6 px-2">
+      <div className="flex gap-2 mb-6 overflow-hidden px-2 h-8">
         <button
           onClick={() => onSetFilterTag(null)}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${!filterTag ? 'bg-white text-black' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
+          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${!filterTag ? 'bg-white text-black' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
         >
           All
         </button>
-        {allTags.slice(0, 3).map(tag => (
+        {allTags.slice(0, 4).map(tag => (
           <button
             key={tag}
             onClick={() => onSetFilterTag(tag === filterTag ? null : tag)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${tag === filterTag ? 'bg-teal-900/50 text-teal-200 border border-teal-500/30' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${tag === filterTag ? 'bg-teal-900/50 text-teal-200 border border-teal-500/30' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
           >
             #{tag}
           </button>
         ))}
-        {allTags.length > 3 && (
-          <div className="relative" ref={moreTagsRef}>
+        {allTags.length > 4 && (
+          <div className="relative shrink-0" ref={moreTagsRef}>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -2044,11 +2044,11 @@ const NotesList: React.FC<{
               }}
               className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap bg-[#18181b] text-neutral-400 border border-white/10 hover:bg-white/5 transition-colors"
             >
-              More
+              +{allTags.length - 4}
             </button>
             {showMoreTags && (
               <div className="absolute top-full left-0 mt-2 bg-[#18181b] border border-white/10 rounded-xl p-2 shadow-xl z-[60] min-w-[150px]">
-                {allTags.slice(3).map(tag => (
+                {allTags.slice(4).map(tag => (
                   <button
                     key={tag}
                     onClick={() => {
