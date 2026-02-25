@@ -2026,7 +2026,7 @@ const NotesList: React.FC<{
         >
           All
         </button>
-        {allTags.slice(0, 3).map(tag => (
+        {allTags.map(tag => (
           <button
             key={tag}
             onClick={() => onSetFilterTag(tag === filterTag ? null : tag)}
@@ -2035,46 +2035,50 @@ const NotesList: React.FC<{
             #{tag}
           </button>
         ))}
-        {allTags.length > 3 && (
-          <div className="relative shrink-0 overflow-visible" ref={moreTagsRef}>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('More clicked, showMoreTags:', !showMoreTags);
-                setShowMoreTags(!showMoreTags);
-              }}
-              className="pointer-events-auto px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap bg-[#18181b] text-neutral-400 border border-white/10 hover:bg-white/5 transition-colors min-w-[50px]"
-            >
-              More
-            </button>
-            {showMoreTags && (
-              <div
-                className="fixed bg-[#18181b] border border-white/10 rounded-xl p-2 shadow-xl z-[100] min-w-[150px]"
-                style={{
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)'
-                }}
-              >
-                {allTags.slice(3).map(tag => (
-                  <button
-                    key={tag}
-                    onClick={() => {
-                      onSetFilterTag(tag === filterTag ? null : tag);
-                      setShowMoreTags(false);
-                    }}
-                    className={`block w-full text-left px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${tag === filterTag ? 'bg-teal-900/50 text-teal-200' : 'text-neutral-400 hover:bg-white/5'}`}
-                  >
-                    #{tag}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+        {allTags.length > 0 && (
+          <button
+            onClick={() => setShowMoreTags(true)}
+            className="shrink-0 p-1.5 rounded-full bg-[#18181b] text-neutral-400 border border-white/10 hover:bg-white/5"
+          >
+            <ChevronDown size={16} />
+          </button>
         )}
       </div>
+
+      {/* Full Page Tags Modal */}
+      {showMoreTags && (
+        <motion.div
+          initial={{ y: '-100%' }}
+          animate={{ y: 0 }}
+          exit={{ y: '-100%' }}
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          className="fixed inset-x-0 top-0 bg-[#09090b] z-[100] p-4 pb-8 overflow-y-auto"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-white">Select Tag</h3>
+            <button
+              onClick={() => setShowMoreTags(false)}
+              className="p-2 rounded-full hover:bg-white/10 text-neutral-400"
+            >
+              <X size={24} />
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {allTags.map(tag => (
+              <button
+                key={tag}
+                onClick={() => {
+                  onSetFilterTag(tag === filterTag ? null : tag);
+                  setShowMoreTags(false);
+                }}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${tag === filterTag ? 'bg-teal-900/50 text-teal-200 border border-teal-500/30' : 'bg-[#18181b] text-neutral-400 border border-white/10 hover:bg-white/5'}`}
+              >
+                #{tag}
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       <div className="space-y-4">
         {filteredNotes.length === 0 ? (
