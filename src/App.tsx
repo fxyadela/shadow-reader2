@@ -2036,7 +2036,7 @@ const NotesList: React.FC<{
           </button>
         ))}
         {allTags.length > 3 && (
-          <div className="relative shrink-0" ref={moreTagsRef}>
+          <div className="relative shrink-0 overflow-visible" ref={moreTagsRef}>
             <button
               type="button"
               onClick={(e) => {
@@ -2050,26 +2050,20 @@ const NotesList: React.FC<{
               More
             </button>
             {showMoreTags && (
-              <>
-                <div
-                  className="fixed inset-0 z-[49]"
-                  onClick={() => setShowMoreTags(false)}
-                />
-                <div className="absolute top-full left-0 mt-2 bg-[#18181b] border border-white/10 rounded-xl p-2 shadow-xl z-50 min-w-[150px]">
-                  {allTags.slice(3).map(tag => (
-                    <button
-                      key={tag}
-                      onClick={() => {
-                        onSetFilterTag(tag === filterTag ? null : tag);
-                        setShowMoreTags(false);
-                      }}
-                      className={`block w-full text-left px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${tag === filterTag ? 'bg-teal-900/50 text-teal-200' : 'text-neutral-400 hover:bg-white/5'}`}
-                    >
-                      #{tag}
-                    </button>
-                  ))}
-                </div>
-              </>
+              <div className="absolute top-full left-0 mt-2 bg-[#18181b] border border-white/10 rounded-xl p-2 shadow-xl z-[100] min-w-[150px]">
+                {allTags.slice(3).map(tag => (
+                  <button
+                    key={tag}
+                    onClick={() => {
+                      onSetFilterTag(tag === filterTag ? null : tag);
+                      setShowMoreTags(false);
+                    }}
+                    className={`block w-full text-left px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${tag === filterTag ? 'bg-teal-900/50 text-teal-200' : 'text-neutral-400 hover:bg-white/5'}`}
+                  >
+                    #{tag}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         )}
