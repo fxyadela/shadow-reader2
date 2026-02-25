@@ -1197,8 +1197,14 @@ const ShadowReader: React.FC<{
                       <button
                         onClick={() => {
                           // Merge with previous
+                          const prevSeg = editedSegments[idx - 1];
+                          const currSeg = seg;
+                          const prevEndsWithLetter = /[a-zA-Z]$/.test(prevSeg.text);
+                          const currStartsWithLetter = /^[a-zA-Z]/.test(currSeg.text);
+                          // If hard split (word cut), merge without space; otherwise add space
+                          const separator = (prevEndsWithLetter && currStartsWithLetter) ? '' : ' ';
                           const newSegments = [...editedSegments];
-                          newSegments[idx - 1].text += ' ' + seg.text;
+                          newSegments[idx - 1].text += separator + currSeg.text;
                           newSegments.splice(idx, 1);
                           setEditedSegments(newSegments);
                         }}
@@ -1212,8 +1218,14 @@ const ShadowReader: React.FC<{
                       <button
                         onClick={() => {
                           // Merge with next
+                          const currSeg = editedSegments[idx];
+                          const nextSeg = editedSegments[idx + 1];
+                          const currEndsWithLetter = /[a-zA-Z]$/.test(currSeg.text);
+                          const nextStartsWithLetter = /^[a-zA-Z]/.test(nextSeg.text);
+                          // If hard split (word cut), merge without space; otherwise add space
+                          const separator = (currEndsWithLetter && nextStartsWithLetter) ? '' : ' ';
                           const newSegments = [...editedSegments];
-                          newSegments[idx].text += ' ' + seg.text;
+                          newSegments[idx].text += separator + nextSeg.text;
                           newSegments.splice(idx + 1, 1);
                           setEditedSegments(newSegments);
                         }}
@@ -1247,15 +1259,31 @@ const ShadowReader: React.FC<{
                       endTime: original?.endTime ?? (idx + 1) * 2
                     };
                   });
-                  // Force re-render with new segments
-                  setSegments(newSegments);
+                  // Recalculate timing proportionally based on text length to match audio
+                  const totalTextLength = editedSegments.reduce((sum, s) => sum + s.text.length, 0);
+                  const audioDuration = audio?.duration || (segments[segments.length - 1]?.endTime || 60);
+                  let accumulatedTime = 0;
+                  const recalculatedSegments = newSegments.map((seg, idx) => {
+                    const proportion = totalTextLength > 0 ? seg.text.length / totalTextLength : 1 / newSegments.length;
+                    const duration = proportion * audioDuration;
+                    const newStartTime = accumulatedTime;
+                    const newEndTime = accumulatedTime + duration;
+                    accumulatedTime = newEndTime;
+                    return {
+                      ...seg,
+                      startTime: newStartTime,
+                      endTime: newEndTime
+                    };
+                  });
+                  // Force re-render with recalculated segments
+                  setSegments(recalculatedSegments);
                   // Also update text state so edits persist when going back to edit mode
                   setText(editedSegments.map(s => s.text).join('\n'));
                   // Reset itemRefs to ensure scroll works after editing
                   itemRefs.current = [];
                   // Reset segment index if out of bounds
-                  if (currentSegmentIndex >= newSegments.length) {
-                    setCurrentSegmentIndex(Math.max(0, newSegments.length - 1));
+                  if (currentSegmentIndex >= recalculatedSegments.length) {
+                    setCurrentSegmentIndex(Math.max(0, recalculatedSegments.length - 1));
                   }
                   // Trigger scroll after a small delay to let DOM update
                   setTimeout(() => {
@@ -1903,6 +1931,32 @@ const NotesDetail: React.FC<{
         cacheBust: true,
       });
 
+      // Convert data URL to blob for sharing
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const file = new File([blob], `note-${note.date.replace(/\//g, '-')}.png`, { type: 'image/png' });
+
+      // Check if Web Share API is available (mobile)
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'Save to Photos',
+            text: 'Shadow Reader Note'
+          });
+          // Show success toast
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 2000);
+          return;
+        } catch (shareError: any) {
+          // User cancelled or share failed, fall back to download
+          if (shareError.name !== 'AbortError') {
+            console.log('Share cancelled, falling back to download');
+          }
+        }
+      }
+
+      // Fallback for desktop or when share fails
       const link = document.createElement('a');
       link.download = `note-${note.date.replace(/\//g, '-')}.png`;
       link.href = dataUrl;
