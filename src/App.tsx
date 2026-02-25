@@ -3619,23 +3619,25 @@ const TimestampEditor: React.FC<{
 
   // Add a new empty row after current segment
   const handleAddNew = (index: number) => {
-    const seg = segments[index];
-    const duration = seg.endTime - seg.startTime;
-    const newDuration = duration / 2;
+    setSegments(prevSegments => {
+      const seg = prevSegments[index];
+      const duration = seg.endTime - seg.startTime;
+      const newDuration = duration / 2;
 
-    const newSegments = [...segments];
-    newSegments[index] = {
-      ...seg,
-      endTime: seg.startTime + newDuration
-    };
+      const newSegments = [...prevSegments];
+      newSegments[index] = {
+        ...seg,
+        endTime: seg.startTime + newDuration
+      };
 
-    newSegments.splice(index + 1, 0, {
-      text: '',
-      startTime: seg.startTime + newDuration,
-      endTime: seg.endTime
+      newSegments.splice(index + 1, 0, {
+        text: '',
+        startTime: seg.startTime + newDuration,
+        endTime: seg.endTime
+      });
+
+      return newSegments;
     });
-
-    setSegments(newSegments);
   };
 
   const handleSave = () => {
@@ -3746,7 +3748,6 @@ const TimestampEditor: React.FC<{
                 {formatTime(seg.startTime)}
               </span>
               <textarea
-                key={`textarea-${idx}`}
                 value={seg.text}
                 onChange={(e) => {
                   e.stopPropagation();
