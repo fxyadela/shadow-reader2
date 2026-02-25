@@ -1946,6 +1946,21 @@ const NotesList: React.FC<{
   isTouch?: boolean
 }> = ({ notes, onSelectNote, onAddNote, onDeleteNote, filterTag, onSetFilterTag, isTouch = false }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [showMoreTags, setShowMoreTags] = useState(false);
+  const moreTagsRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (moreTagsRef.current && !moreTagsRef.current.contains(e.target as Node)) {
+        setShowMoreTags(false);
+      }
+    };
+    if (showMoreTags) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showMoreTags]);
 
   const handleDeleteClick = (id: string) => {
     setShowDeleteConfirm(id);
@@ -1994,15 +2009,15 @@ const NotesList: React.FC<{
       </header>
 
       {/* Tags Filter */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2 px-2 no-scrollbar">
-        <button 
+      <div className="relative flex gap-2 mb-6 overflow-x-auto pb-2 px-2 no-scrollbar">
+        <button
           onClick={() => onSetFilterTag(null)}
           className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${!filterTag ? 'bg-white text-black' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
         >
           All
         </button>
-        {allTags.map(tag => (
-          <button 
+        {allTags.slice(0, 5).map(tag => (
+          <button
             key={tag}
             onClick={() => onSetFilterTag(tag === filterTag ? null : tag)}
             className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${tag === filterTag ? 'bg-teal-900/50 text-teal-200 border border-teal-500/30' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
@@ -2010,6 +2025,32 @@ const NotesList: React.FC<{
             #{tag}
           </button>
         ))}
+        {allTags.length > 5 && (
+          <div className="relative" ref={moreTagsRef}>
+            <button
+              onClick={() => setShowMoreTags(!showMoreTags)}
+              className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap bg-[#18181b] text-neutral-400 border border-white/10 hover:bg-white/5 transition-colors"
+            >
+              More
+            </button>
+            {showMoreTags && (
+              <div className="absolute top-full left-0 mt-2 bg-[#18181b] border border-white/10 rounded-xl p-2 shadow-xl z-50 min-w-[150px]">
+                {allTags.slice(5).map(tag => (
+                  <button
+                    key={tag}
+                    onClick={() => {
+                      onSetFilterTag(tag === filterTag ? null : tag);
+                      setShowMoreTags(false);
+                    }}
+                    className={`block w-full text-left px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${tag === filterTag ? 'bg-teal-900/50 text-teal-200' : 'text-neutral-400 hover:bg-white/5'}`}
+                  >
+                    #{tag}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="space-y-4">
