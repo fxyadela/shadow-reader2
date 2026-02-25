@@ -2019,7 +2019,7 @@ const NotesList: React.FC<{
       </header>
 
       {/* Tags Filter */}
-      <div className="flex gap-2 mb-6 overflow-x-auto px-2 pb-2 no-scrollbar items-center">
+      <div className="flex gap-2 mb-6 overflow-x-auto px-2 pb-2 no-scrollbar items-center pointer-events-auto">
         <button
           onClick={() => onSetFilterTag(null)}
           className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${!filterTag ? 'bg-white text-black' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
@@ -2038,11 +2038,14 @@ const NotesList: React.FC<{
         {allTags.length > 3 && (
           <div className="relative shrink-0" ref={moreTagsRef}>
             <button
+              type="button"
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
+                console.log('More clicked, showMoreTags:', !showMoreTags);
                 setShowMoreTags(!showMoreTags);
               }}
-              className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap bg-[#18181b] text-neutral-400 border border-white/10 hover:bg-white/5 transition-colors"
+              className="pointer-events-auto px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap bg-[#18181b] text-neutral-400 border border-white/10 hover:bg-white/5 transition-colors min-w-[50px]"
             >
               More
             </button>
