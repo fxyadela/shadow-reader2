@@ -3027,8 +3027,7 @@ const VoiceCollection: React.FC<{
             return (
               <div
                 key={voice.id}
-                onClick={() => onPlayVoice(voice)}
-                className="bg-[#18181b] border border-white/10 rounded-2xl p-5 transition-all hover:bg-white/[0.02] active:scale-[0.98] cursor-pointer group"
+                className="bg-[#18181b] border border-white/10 rounded-2xl p-5 transition-all group"
               >
                 <div className="flex justify-between items-start mb-3">
                   <span className="bg-teal-950/30 text-teal-400/80 text-[10px] font-mono px-2 py-1 rounded-full border border-teal-900/30">
@@ -3127,10 +3126,14 @@ const VoiceCollection: React.FC<{
                 )}
 
                 <div className="flex items-center justify-between mt-4">
-                  <div className="flex items-center gap-2 text-neutral-400 group-hover:text-teal-400 transition-colors">
-                    <Play size={16} fill="currentColor" />
-                    <span className="text-xs font-medium">Play Session</span>
-                  </div>
+                  {/* Large play button */}
+                  <button
+                    onClick={() => onPlayVoice(voice)}
+                    className="flex items-center gap-3 px-5 py-3 bg-teal-600 hover:bg-teal-500 active:bg-teal-400 rounded-full transition-all group/btn"
+                  >
+                    <Play size={22} fill="currentColor" className="text-white" />
+                    <span className="text-sm font-medium text-white">Play</span>
+                  </button>
 
                   <div className="flex items-center gap-3">
                     <button
@@ -3235,6 +3238,14 @@ const TimestampEditor: React.FC<{
       newAudio.src = '';
     };
   }, [audioUrl]);
+
+  // Calculate timestamps when audio duration is available
+  useEffect(() => {
+    if (audioDuration > 0 && segments.length > 0 && segments[0].startTime === 0 && segments[0].endTime === 0) {
+      const calculatedSegments = calculateLyricsTimestamps(segments, audioDuration);
+      setSegments(calculatedSegments);
+    }
+  }, [audioDuration]);
 
   // Handle play/pause
   const togglePlay = () => {
