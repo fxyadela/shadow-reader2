@@ -3759,7 +3759,7 @@ Shadowing Practice
     <div className="bg-[#09090b] min-h-screen">
       {renderContent()}
       {renderTimestampEditor()}
-      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+      {!editingVoice && <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />}
     </div>
   );
 }
