@@ -69,6 +69,60 @@ const getApiBaseUrl = () => {
 };
 
 // ==========================================
+// INDEXEDDB UTILITIES (For large audio files)
+// ==========================================
+
+const DB_NAME = 'shadow-reader-db';
+const STORE_NAME = 'persistent-data';
+
+const initDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+const getIDBItem = async <T,>(key: string, defaultValue: T): Promise<T> => {
+  try {
+    const db = await initDB();
+    return new Promise((resolve) => {
+      const transaction = db.transaction(STORE_NAME, 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(key);
+      request.onsuccess = () => resolve(request.result || defaultValue);
+      request.onerror = () => resolve(defaultValue);
+    });
+  } catch {
+    return defaultValue;
+  }
+};
+
+const setIDBItem = async <T,>(key: string, value: T): Promise<void> => {
+  try {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.put(value, key);
+      request.onsuccess = () => {
+        console.log(`[IDB] Successfully saved ${key}`);
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (e) {
+    console.error('Failed to save to IndexedDB:', e);
+  }
+};
+
+// ==========================================
 // LOCAL STORAGE UTILITIES
 // ==========================================
 
@@ -4080,9 +4134,7 @@ export default function App() {
 
   // Global State
   const [notes, setNotes] = useState<Note[]>(INITIAL_NOTES);
-  const [savedVoices, setSavedVoices] = useState<VoiceItem[]>(() =>
-    getStorageItem<VoiceItem[]>(STORAGE_KEYS.SAVED_VOICES, [])
-  );
+  const [savedVoices, setSavedVoices] = useState<VoiceItem[]>([]);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [isNewNote, setIsNewNote] = useState(false);
   const [filterTag, setFilterTag] = useState<string | null>(null);
@@ -4090,6 +4142,32 @@ export default function App() {
   const [isMigrating, setIsMigrating] = useState(false);
   const [sentenceVoiceAssociations, setSentenceVoiceAssociations] = useState<Record<string, string[]>>({});
   const [lastApiStatus, setLastApiStatus] = useState<string | null>(null);
+
+  // Load from LocalStorage/IndexedDB initially
+  useEffect(() => {
+    const loadLocalData = async () => {
+      // Try LocalStorage first (sync)
+      const lsVoices = getStorageItem<VoiceItem[]>(STORAGE_KEYS.SAVED_VOICES, []);
+      if (lsVoices.length > 0) setSavedVoices(lsVoices);
+      
+      const lsNotes = getStorageItem<Note[]>(STORAGE_KEYS.NOTES, []);
+      if (lsNotes.length > 0) setNotes(lsNotes);
+      
+      const lsAssoc = getStorageItem<Record<string, string[]>>(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, {});
+      if (Object.keys(lsAssoc).length > 0) setSentenceVoiceAssociations(lsAssoc);
+
+      // Then check IndexedDB for potentially larger/more data
+      const idbVoices = await getIDBItem<VoiceItem[]>(STORAGE_KEYS.SAVED_VOICES, []);
+      if (idbVoices.length > lsVoices.length) setSavedVoices(idbVoices);
+      
+      const idbNotes = await getIDBItem<Note[]>(STORAGE_KEYS.NOTES, []);
+      if (idbNotes.length > lsNotes.length) setNotes(idbNotes);
+      
+      const idbAssoc = await getIDBItem<Record<string, string[]>>(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, {});
+      if (Object.keys(idbAssoc).length > Object.keys(lsAssoc).length) setSentenceVoiceAssociations(idbAssoc);
+    };
+    loadLocalData();
+  }, []);
 
   // API calling helper
   const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
@@ -4199,9 +4277,18 @@ export default function App() {
       if (data && data.length > 0) {
         setNotes(data);
         setStorageItem(STORAGE_KEYS.NOTES, data);
+        await setIDBItem(STORAGE_KEYS.NOTES, data);
+      } else {
+        // Fallback to IndexedDB if server returns empty
+        const localData = await getIDBItem<Note[]>(STORAGE_KEYS.NOTES, []);
+        if (localData.length > 0) {
+          setNotes(localData);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch notes:', error);
+      const localData = await getIDBItem<Note[]>(STORAGE_KEYS.NOTES, []);
+      if (localData.length > 0) setNotes(localData);
     }
   };
 
@@ -4211,9 +4298,18 @@ export default function App() {
       if (data && data.length > 0) {
         setSavedVoices(data);
         setStorageItem(STORAGE_KEYS.SAVED_VOICES, data);
+        await setIDBItem(STORAGE_KEYS.SAVED_VOICES, data);
+      } else {
+        // Fallback to IndexedDB if server returns empty
+        const localData = await getIDBItem<VoiceItem[]>(STORAGE_KEYS.SAVED_VOICES, []);
+        if (localData.length > 0) {
+          setSavedVoices(localData);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch voices:', error);
+      const localData = await getIDBItem<VoiceItem[]>(STORAGE_KEYS.SAVED_VOICES, []);
+      if (localData.length > 0) setSavedVoices(localData);
     }
   };
 
@@ -4223,9 +4319,18 @@ export default function App() {
       if (data && Object.keys(data).length > 0) {
         setSentenceVoiceAssociations(data);
         setStorageItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, data);
+        await setIDBItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, data);
+      } else {
+        // Fallback to IndexedDB if server returns empty
+        const localData = await getIDBItem<Record<string, string[]>>(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, {});
+        if (Object.keys(localData).length > 0) {
+          setSentenceVoiceAssociations(localData);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch associations:', error);
+      const localData = await getIDBItem<Record<string, string[]>>(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, {});
+      if (Object.keys(localData).length > 0) setSentenceVoiceAssociations(localData);
     }
   };
 
@@ -4242,6 +4347,7 @@ export default function App() {
       };
       setSentenceVoiceAssociations(newAssociations);
       setStorageItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, newAssociations);
+      await setIDBItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, newAssociations);
     } catch (error) {
       console.error('Failed to update associations:', error);
     }
@@ -4304,6 +4410,7 @@ export default function App() {
       const newNotes = notes.filter(n => n.id !== id);
       setNotes(newNotes);
       setStorageItem(STORAGE_KEYS.NOTES, newNotes);
+      await setIDBItem(STORAGE_KEYS.NOTES, newNotes);
       if (selectedNote?.id === id) {
         setNotesView('list');
         setSelectedNote(null);
@@ -4328,6 +4435,7 @@ export default function App() {
       }
       setNotes(newNotes);
       setStorageItem(STORAGE_KEYS.NOTES, newNotes);
+      await setIDBItem(STORAGE_KEYS.NOTES, newNotes);
       setIsNewNote(false);
       setSelectedNote(savedNote);
     } catch (error) {
@@ -4362,11 +4470,13 @@ Shadowing Practice
       const newNotes = [newNote, ...notes];
       setNotes(newNotes);
       setStorageItem(STORAGE_KEYS.NOTES, newNotes);
+      await setIDBItem(STORAGE_KEYS.NOTES, newNotes);
     } catch (error) {
       console.error('Failed to save shadow note:', error);
       const newNotes = [newNote, ...notes];
       setNotes(newNotes);
       setStorageItem(STORAGE_KEYS.NOTES, newNotes);
+      await setIDBItem(STORAGE_KEYS.NOTES, newNotes);
     }
   };
 
@@ -4394,11 +4504,13 @@ Shadowing Practice
       const newVoices = [newVoice, ...savedVoices];
       setSavedVoices(newVoices);
       setStorageItem(STORAGE_KEYS.SAVED_VOICES, newVoices);
+      await setIDBItem(STORAGE_KEYS.SAVED_VOICES, newVoices);
     } catch (error) {
       console.error('Failed to save voice:', error);
       const newVoices = [newVoice, ...savedVoices];
       setSavedVoices(newVoices);
       setStorageItem(STORAGE_KEYS.SAVED_VOICES, newVoices);
+      await setIDBItem(STORAGE_KEYS.SAVED_VOICES, newVoices);
     }
   };
 
@@ -4440,6 +4552,7 @@ Shadowing Practice
           });
           setNotes(mergedNotes);
           setStorageItem(STORAGE_KEYS.NOTES, mergedNotes);
+          await setIDBItem(STORAGE_KEYS.NOTES, mergedNotes);
         }
 
         // Merge Voices
@@ -4452,6 +4565,7 @@ Shadowing Practice
           });
           setSavedVoices(mergedVoices);
           setStorageItem(STORAGE_KEYS.SAVED_VOICES, mergedVoices);
+          await setIDBItem(STORAGE_KEYS.SAVED_VOICES, mergedVoices);
         }
 
         // Merge Associations
@@ -4459,6 +4573,7 @@ Shadowing Practice
           const mergedAssoc = { ...sentenceVoiceAssociations, ...data.associations };
           setSentenceVoiceAssociations(mergedAssoc);
           setStorageItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, mergedAssoc);
+          await setIDBItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, mergedAssoc);
         }
 
         // Sync to server
@@ -4489,7 +4604,10 @@ Shadowing Practice
         method: 'POST',
         body: JSON.stringify(updatedVoice)
       });
-      setSavedVoices(prev => prev.map(v => v.id === id ? updatedVoice : v));
+      const newVoices = savedVoices.map(v => v.id === id ? updatedVoice : v);
+      setSavedVoices(newVoices);
+      setStorageItem(STORAGE_KEYS.SAVED_VOICES, newVoices);
+      await setIDBItem(STORAGE_KEYS.SAVED_VOICES, newVoices);
     } catch (error) {
       console.error('Failed to update voice name:', error);
     }
@@ -4498,7 +4616,10 @@ Shadowing Practice
   const handleDeleteVoice = async (id: string) => {
     try {
       await apiFetch(`/api/voices/${id}`, { method: 'DELETE' });
-      setSavedVoices(prev => prev.filter(v => v.id !== id));
+      const newVoices = savedVoices.filter(v => v.id !== id);
+      setSavedVoices(newVoices);
+      setStorageItem(STORAGE_KEYS.SAVED_VOICES, newVoices);
+      await setIDBItem(STORAGE_KEYS.SAVED_VOICES, newVoices);
     } catch (error) {
       console.error('Failed to delete voice:', error);
     }
