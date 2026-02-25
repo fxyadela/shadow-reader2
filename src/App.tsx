@@ -2026,7 +2026,7 @@ const NotesList: React.FC<{
         >
           All
         </button>
-        {allTags.slice(0, 5).map(tag => (
+        {allTags.slice(0, 3).map(tag => (
           <button
             key={tag}
             onClick={() => onSetFilterTag(tag === filterTag ? null : tag)}
@@ -2035,7 +2035,7 @@ const NotesList: React.FC<{
             #{tag}
           </button>
         ))}
-        {allTags.length > 5 && (
+        {allTags.length > 3 && (
           <div className="relative shrink-0" ref={moreTagsRef}>
             <button
               onClick={(e) => {
@@ -2048,7 +2048,7 @@ const NotesList: React.FC<{
             </button>
             {showMoreTags && (
               <div className="absolute top-full left-0 mt-2 bg-[#18181b] border border-white/10 rounded-xl p-2 shadow-xl z-[60] min-w-[150px]">
-                {allTags.slice(5).map(tag => (
+                {allTags.slice(3).map(tag => (
                   <button
                     key={tag}
                     onClick={() => {
