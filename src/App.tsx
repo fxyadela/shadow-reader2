@@ -1496,22 +1496,14 @@ const ShadowReader: React.FC<{
               exit={{ opacity: 0 }}
               className="max-w-xl mx-auto flex flex-col h-full"
             >
-              <div className="relative flex-1 min-h-0 mt-6">
+              <div className="relative flex-1 min-h-0 mt-4 pb-20">
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  className="w-full h-full bg-transparent text-neutral-200 py-4 px-6 pr-20 outline-none resize-none text-xl font-semibold leading-relaxed placeholder:text-neutral-600 placeholder:font-semibold placeholder:text-left text-left overflow-y-auto"
+                  className="w-full h-full bg-transparent text-neutral-200 py-2 px-6 pr-20 outline-none resize-none text-xl font-semibold leading-relaxed placeholder:text-neutral-600 placeholder:font-semibold placeholder:text-left text-left overflow-y-auto"
                   placeholder="Paste your learning material here..."
                 />
-                <div className="absolute top-4 right-4 flex gap-2">
-                  {text && (
-                    <button
-                      onClick={() => setText('')}
-                      className="p-1.5 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-white transition-colors"
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
+                <div className="absolute top-0 right-0 p-2 bg-gradient-to-l from-black/60 to-transparent backdrop-blur-sm flex gap-2">
                   {text.trim() && (
                     <div className="relative group">
                       <button
@@ -1528,6 +1520,14 @@ const ShadowReader: React.FC<{
                       </div>
                     </div>
                   )}
+                  {text && (
+                    <button
+                      onClick={() => setText('')}
+                      className="p-1.5 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-white transition-colors"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -1541,16 +1541,35 @@ const ShadowReader: React.FC<{
               exit={{ opacity: 0, x: -20 }}
               className="max-w-xl mx-auto flex flex-col h-full overflow-hidden"
             >
+              {/* Header */}
+              <div className="flex items-center justify-between px-1 pt-4 pb-2">
+                <h2 className="text-lg font-semibold text-neutral-200">Audio Settings</h2>
+                <button
+                  onClick={handleGenerate}
+                  disabled={isLoading}
+                  className="group relative overflow-hidden rounded-xl bg-teal-600 px-4 py-2 transition-all hover:bg-teal-500 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  <div className="relative z-10 flex items-center gap-2 text-sm font-semibold text-black">
+                    {isLoading ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Wand2 size={16} className="group-hover:rotate-12 transition-transform" />
+                    )}
+                    <span>Generate</span>
+                  </div>
+                </button>
+              </div>
+
               <div className="flex-1 overflow-y-auto space-y-8 pb-4">
-              {/* Controls */}
-              <div className="space-y-6">
-                
-                {/* --- Basic Settings --- */}
+                {/* Controls */}
                 <div className="space-y-6">
-                  {/* Model */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-neutral-400 ml-1">Model</label>
-                    <div className="relative">
+
+                  {/* --- Basic Settings --- */}
+                  <div className="space-y-6">
+                    {/* Model */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-neutral-400 ml-1">Model</label>
+                      <div className="relative">
                       <button
                         onClick={() => setShowModelDropdown(!showModelDropdown)}
                         className="w-full flex items-center justify-between bg-neutral-800/50 text-white p-3 pr-10 rounded-xl border border-white/10 focus:border-teal-500/30"
@@ -1733,7 +1752,7 @@ const ShadowReader: React.FC<{
                                     initial={{ opacity: 0, y: -10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -10 }}
-                                    className="absolute top-full left-0 right-0 mt-2 bg-neutral-800 rounded-lg border border-white/10 overflow-hidden z-50"
+                                    className="absolute top-full left-0 right-0 mt-2 bg-neutral-800 rounded-lg border border-white/10 overflow-y-auto z-50 max-h-[140px] no-scrollbar"
                                   >
                                     {EMOTIONS.map(e => (
                                       <button
@@ -1829,25 +1848,6 @@ const ShadowReader: React.FC<{
                     )}
                   </AnimatePresence>
                 </div>
-              </div>
-
-              {/* CTA */}
-              <div className="pt-2 pb-6">
-                <button 
-                  onClick={handleGenerate}
-                  disabled={isLoading}
-                  className="w-full group relative overflow-hidden rounded-2xl bg-teal-600 p-4 transition-all hover:bg-teal-500 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  <div className="relative z-10 flex items-center justify-center gap-2 text-lg font-semibold text-black">
-                    {isLoading ? (
-                      <Loader2 size={20} className="animate-spin" />
-                    ) : (
-                      <Wand2 size={20} className="group-hover:rotate-12 transition-transform" />
-                    )}
-                    <span>{isLoading ? 'Generating...' : 'Generate Speech'}</span>
-                  </div>
-                </button>
-              </div>
               </div>
             </motion.div>
           )}
