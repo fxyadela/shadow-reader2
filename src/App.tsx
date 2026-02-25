@@ -3484,12 +3484,13 @@ const TimestampEditor: React.FC<{
   const [segments, setSegments] = useState<LyricSegment[]>(initialSegments);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const [audioDuration, setAudioDuration] = useState(voice.duration || 60);
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const lastScrollRef = useRef<number>(0);
+  // Use ref for editing state to avoid re-render issues
+  const isEditingRef = useRef(false);
+  const [isEditingDisplay, setIsEditingDisplay] = useState(false); // For UI feedback only
 
   // Initialize audio
   useEffect(() => {
@@ -3524,11 +3525,11 @@ const TimestampEditor: React.FC<{
     setIsPlaying(!isPlaying);
   };
 
-  // Time update handler - only update segment when not editing
+  // Time update handler - only update segment when not editing (using ref)
   useEffect(() => {
     if (!audio) return;
     const handleTimeUpdate = () => {
-      if (isEditing) return; // Don't update segment while editing
+      if (isEditingRef.current) return; // Don't update segment while editing
       const currentTime = audio.currentTime;
       const activeIndex = segments.findIndex(
         seg => currentTime >= seg.startTime && currentTime < seg.endTime
@@ -3539,11 +3540,11 @@ const TimestampEditor: React.FC<{
     };
     audio.addEventListener('timeupdate', handleTimeUpdate);
     return () => audio.removeEventListener('timeupdate', handleTimeUpdate);
-  }, [audio, segments, currentSegmentIndex, isEditing]);
+  }, [audio, segments, currentSegmentIndex]);
 
-  // Auto-scroll to center active segment - only when playing and not editing
+  // Auto-scroll to center active segment - only when playing and not editing (using ref)
   useEffect(() => {
-    if (!isPlaying || isEditing) return;
+    if (!isPlaying || isEditingRef.current) return;
     if (itemRefs.current[currentSegmentIndex] && containerRef.current) {
       const container = containerRef.current;
       const element = itemRefs.current[currentSegmentIndex];
@@ -3559,7 +3560,7 @@ const TimestampEditor: React.FC<{
         container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
       }
     }
-  }, [currentSegmentIndex, isPlaying, isEditing]);
+  }, [currentSegmentIndex, isPlaying]);
 
   // Reset refs when segments change
   useEffect(() => {
@@ -3575,9 +3576,11 @@ const TimestampEditor: React.FC<{
   };
 
   const handleTextChange = (index: number, newText: string) => {
-    const newSegments = [...segments];
-    newSegments[index] = { ...newSegments[index], text: newText };
-    setSegments(newSegments);
+    setSegments(prevSegments => {
+      const newSegments = [...prevSegments];
+      newSegments[index] = { ...newSegments[index], text: newText };
+      return newSegments;
+    });
   };
 
   const handleMergePrev = (index: number) => {
@@ -3743,13 +3746,20 @@ const TimestampEditor: React.FC<{
                 {formatTime(seg.startTime)}
               </span>
               <textarea
+                key={`textarea-${idx}`}
                 value={seg.text}
                 onChange={(e) => {
                   e.stopPropagation();
                   handleTextChange(idx, e.target.value);
                 }}
-                onFocus={() => setIsEditing(true)}
-                onBlur={() => setIsEditing(false)}
+                onFocus={() => {
+                  isEditingRef.current = true;
+                  setIsEditingDisplay(true);
+                }}
+                onBlur={() => {
+                  isEditingRef.current = false;
+                  setIsEditingDisplay(false);
+                }}
                 onClick={(e) => e.stopPropagation()}
                 className="flex-1 bg-transparent text-white text-sm resize-none outline-none"
                 rows={Math.max(1, Math.ceil(seg.text.length / 30))}
