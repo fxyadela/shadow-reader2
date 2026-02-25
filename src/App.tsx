@@ -618,7 +618,7 @@ const ShadowReader: React.FC<{
   // Basic
   const [model, setModel] = useState(savedSettings.model || 'speech-2.6-hd');
   const [voices, setVoices] = useState(VOICES);
-  const [selectedVoice, setSelectedVoice] = useState(savedSettings.selectedVoice || VOICES[0].id);
+  const [selectedVoice, setSelectedVoice] = useState(savedSettings.selectedVoice || 'moss_audio_e13b8230-0ff2-11f1-a2d4-8609e701aa01');
   const [speed, setSpeed] = useState(savedSettings.speed ?? 1.0);
   const [vol, setVol] = useState(savedSettings.vol ?? 3.0);
 
