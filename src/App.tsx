@@ -679,6 +679,8 @@ const ShadowReader: React.FC<{
   const [showLangPopup, setShowLangPopup] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showVoiceDropdown, setShowVoiceDropdown] = useState(false);
+  const [showEmotionDropdown, setShowEmotionDropdown] = useState(false);
+  const [showSoundEffectDropdown, setShowSoundEffectDropdown] = useState(false);
   const [isTextTranslated, setIsTextTranslated] = useState(false);
   const [originalTextBeforeTranslation, setOriginalTextBeforeTranslation] = useState('');
 
@@ -1498,10 +1500,10 @@ const ShadowReader: React.FC<{
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  className="w-full h-full bg-transparent text-neutral-200 py-4 px-6 outline-none resize-none text-xl font-semibold leading-relaxed placeholder:text-neutral-600 placeholder:font-semibold placeholder:text-left text-left overflow-y-auto"
+                  className="w-full h-full bg-transparent text-neutral-200 py-4 px-6 pr-20 outline-none resize-none text-xl font-semibold leading-relaxed placeholder:text-neutral-600 placeholder:font-semibold placeholder:text-left text-left overflow-y-auto"
                   placeholder="Paste your learning material here..."
                 />
-                <div className="absolute bottom-4 right-4 flex gap-2">
+                <div className="absolute top-4 right-4 flex gap-2">
                   {text && (
                     <button
                       onClick={() => setText('')}
@@ -1719,14 +1721,31 @@ const ShadowReader: React.FC<{
                             <div className="space-y-2">
                               <label className="text-xs text-neutral-500">Emotion</label>
                               <div className="relative">
-                                <select 
-                                  value={emotion}
-                                  onChange={(e) => setEmotion(e.target.value)}
-                                  className="w-full appearance-none bg-neutral-800/50 text-neutral-300 text-sm p-2.5 pr-8 rounded-lg border border-white/10 outline-none"
+                                <button
+                                  onClick={() => setShowEmotionDropdown(!showEmotionDropdown)}
+                                  className="w-full flex items-center justify-between bg-neutral-800/50 text-neutral-300 text-sm p-2.5 pr-8 rounded-lg border border-white/10"
                                 >
-                                  {EMOTIONS.map(e => <option key={e} value={e}>{e}</option>)}
-                                </select>
-                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none" size={14} />
+                                  <span>{emotion}</span>
+                                  <ChevronDown className="text-neutral-500" size={14} />
+                                </button>
+                                {showEmotionDropdown && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 10 }}
+                                    className="absolute bottom-full left-0 right-0 mb-2 bg-neutral-800 rounded-lg border border-white/10 overflow-hidden z-50"
+                                  >
+                                    {EMOTIONS.map(e => (
+                                      <button
+                                        key={e}
+                                        onClick={() => { setEmotion(e); setShowEmotionDropdown(false); }}
+                                        className={`w-full text-left px-3 py-2.5 hover:bg-white/10 transition-colors ${emotion === e ? 'text-teal-400 bg-teal-900/20' : 'text-neutral-300'}`}
+                                      >
+                                        {e}
+                                      </button>
+                                    ))}
+                                  </motion.div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1776,14 +1795,31 @@ const ShadowReader: React.FC<{
                             <div className="space-y-2">
                               <label className="text-xs text-neutral-500">Sound Effect</label>
                               <div className="relative">
-                                <select 
-                                  value={soundEffect}
-                                  onChange={(e) => setSoundEffect(e.target.value)}
-                                  className="w-full appearance-none bg-neutral-800/50 text-neutral-300 text-sm p-2.5 pr-8 rounded-lg border border-white/10 outline-none"
+                                <button
+                                  onClick={() => setShowSoundEffectDropdown(!showSoundEffectDropdown)}
+                                  className="w-full flex items-center justify-between bg-neutral-800/50 text-neutral-300 text-sm p-2.5 pr-8 rounded-lg border border-white/10"
                                 >
-                                  {SOUND_EFFECTS.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none" size={14} />
+                                  <span>{SOUND_EFFECTS.find(s => s.id === soundEffect)?.name || 'None'}</span>
+                                  <ChevronDown className="text-neutral-500" size={14} />
+                                </button>
+                                {showSoundEffectDropdown && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 10 }}
+                                    className="absolute bottom-full left-0 right-0 mb-2 bg-neutral-800 rounded-lg border border-white/10 overflow-hidden z-50 max-h-48 overflow-y-auto"
+                                  >
+                                    {SOUND_EFFECTS.map(s => (
+                                      <button
+                                        key={s.id}
+                                        onClick={() => { setSoundEffect(s.id); setShowSoundEffectDropdown(false); }}
+                                        className={`w-full text-left px-3 py-2.5 hover:bg-white/10 transition-colors ${soundEffect === s.id ? 'text-teal-400 bg-teal-900/20' : 'text-neutral-300'}`}
+                                      >
+                                        {s.name}
+                                      </button>
+                                    ))}
+                                  </motion.div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1796,7 +1832,7 @@ const ShadowReader: React.FC<{
               </div>
 
               {/* CTA */}
-              <div className="pt-4">
+              <div className="pt-8 pb-8">
                 <button 
                   onClick={handleGenerate}
                   disabled={isLoading}
