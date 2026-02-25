@@ -1472,7 +1472,7 @@ const ShadowReader: React.FC<{
         )}
       </header>
 
-      <main className="px-6 pt-6">
+      <main className="px-6 pt-6 h-[calc(100vh-140px)] overflow-hidden">
         <AnimatePresence mode="wait">
           {mode === 'edit' && (
             <motion.div
@@ -1480,13 +1480,13 @@ const ShadowReader: React.FC<{
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="max-w-xl mx-auto space-y-8"
+              className="max-w-xl mx-auto flex flex-col h-full"
             >
-              <div className="relative">
+              <div className="relative flex-1 min-h-0">
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  className="w-full h-80 bg-neutral-900/50 text-neutral-200 p-6 pr-24 rounded-3xl border border-white/10 focus:border-teal-500/50 outline-none resize-none text-lg leading-relaxed placeholder:text-neutral-600"
+                  className="w-full h-full bg-neutral-900/50 text-neutral-200 p-6 pr-24 rounded-3xl border border-white/10 focus:border-teal-500/50 outline-none resize-none text-lg leading-relaxed placeholder:text-neutral-600 overflow-y-auto"
                   placeholder="Paste your learning material here..."
                 />
                 <div className="absolute bottom-4 right-4 flex gap-2">
@@ -1532,8 +1532,9 @@ const ShadowReader: React.FC<{
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="max-w-xl mx-auto space-y-8 pb-32"
+              className="max-w-xl mx-auto flex flex-col h-full overflow-hidden"
             >
+              <div className="flex-1 overflow-y-auto space-y-8 pb-4">
               {/* Controls */}
               <div className="space-y-6">
                 
@@ -1773,6 +1774,7 @@ const ShadowReader: React.FC<{
                     <span>{isLoading ? 'Generating...' : 'Generate Speech'}</span>
                   </div>
                 </button>
+              </div>
               </div>
             </motion.div>
           )}
