@@ -1840,7 +1840,6 @@ const ShadowReader: React.FC<{
                   </AnimatePresence>
                 </div>
               </div>
-              </motion.div>
 
           {mode === 'shadowing' && (
             <motion.div
