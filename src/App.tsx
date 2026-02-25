@@ -1496,22 +1496,14 @@ const ShadowReader: React.FC<{
               exit={{ opacity: 0 }}
               className="max-w-xl mx-auto flex flex-col h-full"
             >
-              <div className="relative flex-1 min-h-0 mt-6">
+              <div className="relative flex-1 min-h-0 mt-6 pb-20">
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  className="w-full h-full bg-transparent text-neutral-200 py-4 px-6 pr-20 outline-none resize-none text-xl font-semibold leading-relaxed placeholder:text-neutral-600 placeholder:font-semibold placeholder:text-left text-left overflow-y-auto"
+                  className="w-full h-full bg-transparent text-neutral-200 py-2 px-6 pr-20 outline-none resize-none text-xl font-semibold leading-relaxed placeholder:text-neutral-600 placeholder:font-semibold placeholder:text-left text-left overflow-y-auto"
                   placeholder="Paste your learning material here..."
                 />
-                <div className="absolute top-4 right-4 flex gap-2">
-                  {text && (
-                    <button
-                      onClick={() => setText('')}
-                      className="p-1.5 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-white transition-colors"
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
+                <div className="absolute top-0 right-0 p-2 bg-gradient-to-l from-black/60 to-transparent backdrop-blur-sm flex gap-2">
                   {text.trim() && (
                     <div className="relative group">
                       <button
@@ -1527,6 +1519,14 @@ const ShadowReader: React.FC<{
                         <button onClick={() => { handleTranslate('ko'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ko' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇰🇷</button>
                       </div>
                     </div>
+                  )}
+                  {text && (
+                    <button
+                      onClick={() => setText('')}
+                      className="p-1.5 rounded-full bg-neutral-700/50 hover:bg-neutral-600 text-neutral-400 hover:text-white transition-colors"
+                    >
+                      <X size={16} />
+                    </button>
                   )}
                 </div>
               </div>
@@ -1733,7 +1733,7 @@ const ShadowReader: React.FC<{
                                     initial={{ opacity: 0, y: -10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -10 }}
-                                    className="absolute top-full left-0 right-0 mt-2 bg-neutral-800 rounded-lg border border-white/10 overflow-hidden z-50"
+                                    className="absolute top-full left-0 right-0 mt-2 bg-neutral-800 rounded-lg border border-white/10 overflow-y-auto z-50 max-h-[140px] no-scrollbar"
                                   >
                                     {EMOTIONS.map(e => (
                                       <button
