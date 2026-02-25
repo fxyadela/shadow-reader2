@@ -13,8 +13,17 @@ async function getDB() {
   try {
     const data = await fs.readFile(DB_FILE, "utf-8");
     if (!data.trim()) throw new Error("Empty DB file");
-    return JSON.parse(data);
+    const db = JSON.parse(data);
+    // Ensure basic structure exists
+    return {
+      notes: db.notes || [],
+      voices: db.voices || [],
+      associations: db.associations || {},
+      settings: db.settings || {},
+      ...db
+    };
   } catch (error) {
+    console.log(`[DB] Initializing new database file at ${DB_FILE}`);
     const initialData = { notes: [], voices: [], associations: {}, settings: {} };
     await fs.writeFile(DB_FILE, JSON.stringify(initialData, null, 2));
     return initialData;
@@ -22,7 +31,13 @@ async function getDB() {
 }
 
 async function saveDB(data: any) {
-  await fs.writeFile(DB_FILE, JSON.stringify(data, null, 2));
+  try {
+    await fs.writeFile(DB_FILE, JSON.stringify(data, null, 2));
+    console.log(`[DB] Successfully saved to ${DB_FILE}`);
+  } catch (error) {
+    console.error(`[DB] Failed to save to ${DB_FILE}:`, error);
+    throw error;
+  }
 }
 
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY || '';
@@ -35,7 +50,7 @@ const PORT = 3001;
 // CORS headers for mobile access
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
@@ -56,6 +71,9 @@ app.use((req, res, next) => {
 });
 
 // API Routes
+app.get("/", (req, res) => {
+  res.send("Shadow Reader Backend is running");
+});
 
 // Notes APIs
 app.get("/api/notes", async (req: Request, res: Response) => {
@@ -72,6 +90,7 @@ app.post("/api/notes", async (req: Request, res: Response) => {
   try {
     const db = await getDB();
     const note = req.body;
+    console.log(`[API] Saving note: ${note.id} (${note.title})`);
     const index = db.notes.findIndex((n: any) => n.id === note.id);
     if (index >= 0) {
       db.notes[index] = note;
@@ -113,6 +132,7 @@ app.post("/api/voices", async (req: Request, res: Response) => {
   try {
     const db = await getDB();
     const voice = req.body;
+    console.log(`[API] Saving voice: ${voice.id} (${voice.title})`);
     const index = db.voices.findIndex((v: any) => v.id === voice.id);
     if (index >= 0) {
       db.voices[index] = voice;
@@ -198,6 +218,7 @@ app.post("/api/associations", async (req: Request, res: Response) => {
   try {
     const db = await getDB();
     const { sentenceKey, voiceIds } = req.body;
+    console.log(`[API] Saving association: ${sentenceKey} -> [${voiceIds.join(', ')}]`);
     if (!db.associations) db.associations = {};
     db.associations[sentenceKey] = voiceIds;
     await saveDB(db);

@@ -257,6 +257,31 @@ const useSwipeToBack = (onBack: () => void, enabled: boolean = true) => {
   };
 };
 
+// API calling helper
+const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
+  // Use relative URL to leverage Vite proxy in development, or current host in production
+  const url = endpoint;
+  console.log(`[API] Fetching ${url}`, options.method || 'GET');
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[API] Error from ${url}:`, response.status, errorText);
+      throw new Error(`API Error ${response.status}: ${errorText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error(`[API] Request failed for ${url}:`, error);
+    throw error;
+  }
+};
+
 // ==========================================
 // SHARED TYPES & CONSTANTS
 // ==========================================
@@ -854,7 +879,7 @@ const ShadowReader: React.FC<{
           const rawSegments = parseLyrics(initialText);
           // Set initial segments (will be recalculated when duration is available)
           setSegments(rawSegments.map((seg, idx) => ({
-            text: seg,
+            ...seg,
             startTime: idx,
             endTime: idx + 1
           })));
@@ -987,13 +1012,8 @@ const ShadowReader: React.FC<{
     }
     
     try {
-      const apiUrl = `${getApiBaseUrl()}/api/tts`;
-      console.log('[TTS] Calling API:', apiUrl);
-      const response = await fetch(apiUrl, {
+      const data = await apiFetch('/api/tts', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           model: model,
           text: text,
@@ -1020,13 +1040,6 @@ const ShadowReader: React.FC<{
           }
         })
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `API request failed: ${response.status}`);
-      }
-
-      const data = await response.json();
 
       if (data.base_resp?.status_code !== 0) {
         throw new Error(data.base_resp?.status_msg || 'Generation failed');
@@ -1115,18 +1128,14 @@ const ShadowReader: React.FC<{
       if (segments.length > 0) {
         // Translate each segment individually
         for (const segment of segments) {
-          const response = await fetch(`${getApiBaseUrl()}/api/translate`, {
+          const data = await apiFetch('/api/translate', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
             body: JSON.stringify({
               text: segment.text,
               targetLang: langToUse
             })
           });
 
-          const data = await response.json();
           if (data.translatedText) {
             translations.push(data.translatedText);
           } else if (data.error) {
@@ -1140,18 +1149,14 @@ const ShadowReader: React.FC<{
         setTranslatedSegments(translations);
       } else {
         // In edit mode - translate the whole text
-        const response = await fetch(`${getApiBaseUrl()}/api/translate`, {
+        const data = await apiFetch('/api/translate', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify({
             text: text,
             targetLang: langToUse
           })
         });
 
-        const data = await response.json();
         if (data.translatedText) {
           setText(data.translatedText);
           setIsTextTranslated(true);
@@ -1524,7 +1529,7 @@ const ShadowReader: React.FC<{
                 )}
                 <button
                   onClick={() => {
-                    setEditedSegments(segments.map(s => ({ text: s.text, start: s.start, end: s.end })));
+                    setEditedSegments(segments.map(s => ({ text: s.text, start: s.startTime, end: s.endTime })));
                     setShowSegmentEditor(true);
                   }}
                   className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
@@ -1951,7 +1956,7 @@ const ShadowReader: React.FC<{
                   {segments.map((seg, idx) => (
                     <div
                       key={idx}
-                      ref={el => itemRefs.current[idx] = el}
+                      ref={el => { itemRefs.current[idx] = el; }}
                       className={`transition-all duration-500 cursor-pointer group ${
                         idx === currentSegmentIndex
                           ? 'scale-100 opacity-100 blur-0'
@@ -3332,7 +3337,7 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
                 if (closeMainDropdown) closeMainDropdown();
                 onTogglePlayDropdown();
               } else {
-                onPlay(associatedVoices[0], associatedVoices);
+                onPlay(associatedVoices[0]);
               }
             }}
             className="opacity-100 transition-opacity p-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400"
@@ -3350,7 +3355,7 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
                   key={voice.id}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onPlay(voice, associatedVoices);
+                    onPlay(voice);
                     onTogglePlayDropdown();
                   }}
                   className="w-full text-left px-2 py-1.5 text-xs text-neutral-200 hover:bg-white/5 rounded truncate block"
@@ -3377,7 +3382,7 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      onPlay(voice, associatedVoices);
+                      onPlay(voice);
                     }}
                     className="flex-1 text-left text-xs text-neutral-200 truncate"
                     style={{ maxWidth: '120px' }}
@@ -3940,7 +3945,7 @@ const TimestampEditor: React.FC<{
         {segments.map((seg, idx) => (
           <div
             key={idx}
-            ref={el => itemRefs.current[idx] = el}
+            ref={el => { itemRefs.current[idx] = el; }}
             className={`p-3 rounded-xl border transition-all ${
               idx === currentSegmentIndex
                 ? 'bg-teal-950/30 border-teal-500/50'
@@ -4060,9 +4065,8 @@ export default function App() {
         const localAssociations = getStorageItem<Record<string, string[]>>(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, {});
         const localSettings = getStorageItem<any>(STORAGE_KEYS.SHADOW_SETTINGS, {});
 
-        const response = await fetch(`${getApiBaseUrl()}/api/migrate`, {
+        await apiFetch('/api/migrate', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             notes: localNotes,
             voices: localVoices,
@@ -4071,10 +4075,8 @@ export default function App() {
           })
         });
 
-        if (response.ok) {
-          localStorage.setItem('shadow-reader-db-migrated', 'true');
-          console.log('Migration successful');
-        }
+        localStorage.setItem('shadow-reader-db-migrated', 'true');
+        console.log('Migration successful');
       } catch (error) {
         console.error('Migration failed:', error);
       } finally {
@@ -4090,11 +4092,8 @@ export default function App() {
 
   const fetchNotes = async () => {
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/notes`);
-      if (response.ok) {
-        const data = await response.json();
-        setNotes(data);
-      }
+      const data = await apiFetch('/api/notes');
+      setNotes(data || []);
     } catch (error) {
       console.error('Failed to fetch notes:', error);
     }
@@ -4102,11 +4101,8 @@ export default function App() {
 
   const fetchVoices = async () => {
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/voices`);
-      if (response.ok) {
-        const data = await response.json();
-        setSavedVoices(data);
-      }
+      const data = await apiFetch('/api/voices');
+      setSavedVoices(data || []);
     } catch (error) {
       console.error('Failed to fetch voices:', error);
     }
@@ -4114,11 +4110,8 @@ export default function App() {
 
   const fetchAssociations = async () => {
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/associations`);
-      if (response.ok) {
-        const data = await response.json();
-        setSentenceVoiceAssociations(data || {});
-      }
+      const data = await apiFetch('/api/associations');
+      setSentenceVoiceAssociations(data || {});
     } catch (error) {
       console.error('Failed to fetch associations:', error);
     }
@@ -4127,17 +4120,14 @@ export default function App() {
   const handleUpdateAssociations = async (sentenceKey: string, voiceIds: string[]) => {
     if (!sentenceKey) return;
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/associations`, {
+      await apiFetch('/api/associations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sentenceKey, voiceIds })
       });
-      if (response.ok) {
-        setSentenceVoiceAssociations(prev => ({
-          ...prev,
-          [sentenceKey]: voiceIds
-        }));
-      }
+      setSentenceVoiceAssociations(prev => ({
+        ...prev,
+        [sentenceKey]: voiceIds
+      }));
     } catch (error) {
       console.error('Failed to update associations:', error);
     }
@@ -4196,7 +4186,7 @@ export default function App() {
 
   const handleDeleteNote = async (id: string) => {
     try {
-      await fetch(`${getApiBaseUrl()}/api/notes/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/notes/${id}`, { method: 'DELETE' });
       setNotes(prev => prev.filter(n => n.id !== id));
       if (selectedNote?.id === id) {
         setNotesView('list');
@@ -4209,21 +4199,17 @@ export default function App() {
 
   const handleUpdateNote = async (updatedNote: Note) => {
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/notes`, {
+      const savedNote = await apiFetch('/api/notes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedNote)
       });
-      if (response.ok) {
-        const savedNote = await response.json();
-        if (isNewNote) {
-          setNotes(prev => [savedNote, ...prev]);
-          setIsNewNote(false);
-        } else {
-          setNotes(prev => prev.map(n => n.id === savedNote.id ? savedNote : n));
-        }
-        setSelectedNote(savedNote);
+      if (isNewNote) {
+        setNotes(prev => [savedNote, ...prev]);
+        setIsNewNote(false);
+      } else {
+        setNotes(prev => prev.map(n => n.id === savedNote.id ? savedNote : n));
       }
+      setSelectedNote(savedNote);
     } catch (error) {
       console.error('Failed to update note:', error);
     }
@@ -4249,14 +4235,11 @@ Shadowing Practice
     };
     
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/notes`, {
+      await apiFetch('/api/notes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newNote)
       });
-      if (response.ok) {
-        await fetchNotes();
-      }
+      await fetchNotes();
     } catch (error) {
       console.error('Failed to save shadow note:', error);
       // Fallback to local state if server fails
@@ -4281,15 +4264,11 @@ Shadowing Practice
     };
 
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/voices`, {
+      await apiFetch('/api/voices', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newVoice)
       });
-      if (response.ok) {
-        // Fetch latest voices to ensure list is up to date
-        await fetchVoices();
-      }
+      await fetchVoices();
     } catch (error) {
       console.error('Failed to save voice:', error);
     }
@@ -4301,14 +4280,11 @@ Shadowing Practice
 
     const updatedVoice = { ...voice, title: newName };
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/voices`, {
+      await apiFetch('/api/voices', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedVoice)
       });
-      if (response.ok) {
-        setSavedVoices(prev => prev.map(v => v.id === id ? updatedVoice : v));
-      }
+      setSavedVoices(prev => prev.map(v => v.id === id ? updatedVoice : v));
     } catch (error) {
       console.error('Failed to update voice name:', error);
     }
@@ -4316,7 +4292,7 @@ Shadowing Practice
 
   const handleDeleteVoice = async (id: string) => {
     try {
-      await fetch(`${getApiBaseUrl()}/api/voices/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/voices/${id}`, { method: 'DELETE' });
       setSavedVoices(prev => prev.filter(v => v.id !== id));
     } catch (error) {
       console.error('Failed to delete voice:', error);
