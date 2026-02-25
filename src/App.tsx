@@ -1993,17 +1993,10 @@ const NotesDetail: React.FC<{
   const [isEditing, setIsEditing] = useState(note.rawContent === "");
   const [rawText, setRawText] = useState(note.rawContent);
   const [showToast, setShowToast] = useState(false);
-  const [showExportConfirm, setShowExportConfirm] = useState(false);
   const detailContentRef = useRef<HTMLDivElement>(null);
 
-  // Export note detail as image - show confirmation first
-  const handleShareNote = () => {
-    setShowExportConfirm(true);
-  };
-
-  // Proceed with export after confirmation
-  const proceedToExport = async () => {
-    setShowExportConfirm(false);
+  // Export note detail as image - opens system share sheet
+  const handleShareNote = async () => {
     if (!detailContentRef.current) return;
 
     try {
@@ -2031,10 +2024,12 @@ const NotesDetail: React.FC<{
           setTimeout(() => setShowToast(false), 2000);
           return;
         } catch (shareError: any) {
-          // User cancelled or share failed, fall back to download
-          if (shareError.name !== 'AbortError') {
-            console.log('Share cancelled, falling back to download');
+          // User cancelled - do nothing
+          if (shareError.name === 'AbortError') {
+            return;
           }
+          // Other error, fall back to download
+          console.log('Share failed, falling back to download');
         }
       }
 
@@ -2269,50 +2264,6 @@ const NotesDetail: React.FC<{
           <Share size={18} />
         </button>
       </header>
-
-      {/* Export Confirmation Modal */}
-      <AnimatePresence>
-        {showExportConfirm && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            {/* Backdrop */}
-            <div
-              className="absolute inset-0 bg-black/60"
-              onClick={() => setShowExportConfirm(false)}
-            />
-            {/* Modal */}
-            <motion.div
-              className="relative bg-[#18181b] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-            >
-              <h3 className="text-lg font-semibold text-white mb-2">Export as Image</h3>
-              <p className="text-neutral-400 text-sm mb-6">
-                Save this note as an image to your device?
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowExportConfirm(false)}
-                  className="flex-1 py-2.5 rounded-full bg-neutral-800 text-neutral-300 font-medium hover:bg-neutral-700 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={proceedToExport}
-                  className="flex-1 py-2.5 rounded-full bg-teal-500 text-white font-medium hover:bg-teal-400 transition-colors"
-                >
-                  Save
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <div ref={detailContentRef} className="bg-[#09090b]">
         {isEditing ? (
