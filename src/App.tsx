@@ -677,6 +677,8 @@ const ShadowReader: React.FC<{
   const [translatedSegments, setTranslatedSegments] = useState<string[]>([]);
   const [isTranslating, setIsTranslating] = useState(false);
   const [showLangPopup, setShowLangPopup] = useState(false);
+  const [isTextTranslated, setIsTextTranslated] = useState(false);
+  const [originalTextBeforeTranslation, setOriginalTextBeforeTranslation] = useState('');
 
   // Audio Cleanup on Unmount
   useEffect(() => {
@@ -1010,6 +1012,14 @@ const ShadowReader: React.FC<{
   const handleTranslate = async (targetLang?: 'zh' | 'ja' | 'ko') => {
     const langToUse = targetLang || translationLang;
 
+    // Toggle: if already translated with this language, restore original text
+    if (targetLang && isTextTranslated && translationLang === targetLang) {
+      setText(originalTextBeforeTranslation);
+      setIsTextTranslated(false);
+      setShowTranslation(false);
+      return;
+    }
+
     // If we are switching languages, we need to re-translate
     // If we are just toggling visibility (targetLang undefined), check if we have segments
     if (!targetLang && translatedSegments.length > 0) {
@@ -1020,6 +1030,11 @@ const ShadowReader: React.FC<{
     if (targetLang) {
       setTranslationLang(targetLang);
       setShowTranslation(true); // Ensure visible when switching
+
+      // Save original text before translating
+      if (!isTextTranslated) {
+        setOriginalTextBeforeTranslation(text);
+      }
     }
 
     setIsTranslating(true);
@@ -1052,6 +1067,11 @@ const ShadowReader: React.FC<{
       }
 
       setTranslatedSegments(translations);
+
+      // Replace text with translation
+      const translatedText = translations.join('\n');
+      setText(translatedText);
+      setIsTextTranslated(true);
     } catch (error) {
       console.error("Translation failed", error);
       alert("Translation failed. Please try again.");
@@ -1826,17 +1846,26 @@ const ShadowReader: React.FC<{
                   <div className="relative group">
                     <button
                       onClick={() => setShowLangPopup(!showLangPopup)}
-                      className={`p-3 rounded-full transition-colors ${showTranslation ? 'text-teal-400 bg-teal-900/30' : 'text-neutral-400 hover:text-white'}`}
-                      title="Translate"
+                      className={`p-3 rounded-full transition-colors ${isTextTranslated ? 'text-teal-400 bg-teal-900/30' : 'text-neutral-400 hover:text-white'}`}
+                      title={isTextTranslated ? "Restore original text" : "Translate"}
                     >
                       {isTranslating ? <Loader2 size={22} className="animate-spin" /> : <Languages size={22} />}
                     </button>
 
                     {/* Language Selector Popup - toggle on click for touch devices, hover on desktop */}
                     <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-bottom-right transition-opacity ${isTouch ? (showLangPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
-                       <button onClick={() => { if (translationLang === 'zh' && showTranslation) { setShowTranslation(false); } else { handleTranslate('zh'); } setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'zh' ? 'bg-teal-600/30' : ''}`}>🇨🇳</button>
-                       <button onClick={() => { if (translationLang === 'ja' && showTranslation) { setShowTranslation(false); } else { handleTranslate('ja'); } setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ja' ? 'bg-teal-600/30' : ''}`}>🇯🇵</button>
-                       <button onClick={() => { if (translationLang === 'ko' && showTranslation) { setShowTranslation(false); } else { handleTranslate('ko'); } setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ko' ? 'bg-teal-600/30' : ''}`}>🇰🇷</button>
+                       <button onClick={() => { handleTranslate('zh'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'zh' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
+                         <span>🇨🇳</span>
+                         {translationLang === 'zh' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
+                       </button>
+                       <button onClick={() => { handleTranslate('ja'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'ja' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
+                         <span>🇯🇵</span>
+                         {translationLang === 'ja' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
+                       </button>
+                       <button onClick={() => { handleTranslate('ko'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'ko' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
+                         <span>🇰🇷</span>
+                         {translationLang === 'ko' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
+                       </button>
                     </div>
                   </div>
 
