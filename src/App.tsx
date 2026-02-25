@@ -3443,7 +3443,7 @@ const TimestampEditor: React.FC<{
       {/* Segments List */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-2"
+        className="flex-1 overflow-y-auto p-4 space-y-2 pb-24"
       >
         {segments.map((seg, idx) => (
           <div
