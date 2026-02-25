@@ -3128,10 +3128,9 @@ const VoiceCollection: React.FC<{
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => onPlayVoice(voice)}
-                        className="flex items-center gap-2 px-3 py-1.5 text-neutral-400 hover:text-teal-400 transition-colors"
+                        className="text-neutral-400 hover:text-teal-400 transition-colors"
                       >
-                        <Play size={14} fill="currentColor" />
-                        <span className="text-xs font-medium">Play</span>
+                        <Play size={18} fill="currentColor" />
                       </button>
                       <button
                         onClick={(e) => {
