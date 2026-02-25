@@ -4617,42 +4617,59 @@ Shadowing Practice
       const voicesData = await apiFetch('/api/voices');
       const assocData = await apiFetch('/api/associations');
 
-      // 2. Update Local State
-      if (notesData) setNotes(notesData);
-      if (voicesData) setSavedVoices(voicesData);
-      if (assocData) setSentenceVoiceAssociations(assocData);
+      // 2. Get local data for comparison (Prioritize IndexedDB)
+      const localNotes = await getIDBItem<Note[]>(STORAGE_KEYS.NOTES, notes);
+      const localVoices = await getIDBItem<VoiceItem[]>(STORAGE_KEYS.SAVED_VOICES, savedVoices);
+      const localAssoc = await getIDBItem<Record<string, string[]>>(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, sentenceVoiceAssociations);
 
-      // 3. Update Local Persistence
-      if (notesData) {
-        setStorageItem(STORAGE_KEYS.NOTES, notesData);
-        await setIDBItem(STORAGE_KEYS.NOTES, notesData);
-      }
-      if (voicesData) {
-        setStorageItem(STORAGE_KEYS.SAVED_VOICES, voicesData);
-        await setIDBItem(STORAGE_KEYS.SAVED_VOICES, voicesData);
-      }
-      if (assocData) {
-        setStorageItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, assocData);
-        await setIDBItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, assocData);
-      }
-
-      // Also try to push what's in local storage to server in case server was reset
-      const localNotes = await getIDBItem<Note[]>(STORAGE_KEYS.NOTES, []);
-      const localVoices = await getIDBItem<VoiceItem[]>(STORAGE_KEYS.SAVED_VOICES, []);
-      const localAssoc = await getIDBItem<Record<string, string[]>>(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, {});
-
-      if (localNotes.length > (notesData?.length || 0) || 
-          localVoices.length > (voicesData?.length || 0)) {
-        console.log('[Sync] Local data seems newer, pushing to server...');
-        await apiFetch('/api/migrate', {
-          method: 'POST',
-          body: JSON.stringify({
-            notes: localNotes,
-            voices: localVoices,
-            associations: localAssoc
-          })
+      // 3. Smart Merge Logic: Never let server empty data overwrite local non-empty data
+      let finalNotes = [...localNotes];
+      if (notesData && notesData.length > 0) {
+        // Merge: Add server notes that don't exist locally
+        notesData.forEach((sn: Note) => {
+          if (!finalNotes.some(ln => ln.id === sn.id)) {
+            finalNotes.push(sn);
+          }
         });
       }
+
+      let finalVoices = [...localVoices];
+      if (voicesData && voicesData.length > 0) {
+        // Merge: Add server voices that don't exist locally
+        voicesData.forEach((sv: VoiceItem) => {
+          if (!finalVoices.some(lv => lv.id === sv.id)) {
+            finalVoices.push(sv);
+          }
+        });
+      }
+
+      const finalAssoc = { ...localAssoc, ...(assocData || {}) };
+
+      // 4. Update Local State
+      setNotes(finalNotes);
+      setSavedVoices(finalVoices);
+      setSentenceVoiceAssociations(finalAssoc);
+
+      // 5. Update Local Persistence
+      setStorageItem(STORAGE_KEYS.NOTES, finalNotes);
+      await setIDBItem(STORAGE_KEYS.NOTES, finalNotes);
+      
+      setStorageItem(STORAGE_KEYS.SAVED_VOICES, finalVoices);
+      await setIDBItem(STORAGE_KEYS.SAVED_VOICES, finalVoices);
+      
+      setStorageItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, finalAssoc);
+      await setIDBItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, finalAssoc);
+
+      // 6. Push merged data back to server to ensure server is in sync
+      console.log('[Sync] Pushing merged data to server...');
+      await apiFetch('/api/migrate', {
+        method: 'POST',
+        body: JSON.stringify({
+          notes: finalNotes,
+          voices: finalVoices,
+          associations: finalAssoc
+        })
+      });
 
       setLastApiStatus('Sync successful');
       setTimeout(() => setLastApiStatus(null), 3000);
