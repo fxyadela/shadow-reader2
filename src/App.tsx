@@ -41,6 +41,7 @@ import {
   SkipBack,
   SkipForward,
   Download,
+  Upload,
   Gauge,
   Menu,
   Share
@@ -677,12 +678,14 @@ const ShadowReader: React.FC<{
   isTouch?: boolean,
   initialSegments?: LyricSegment[],
   onEditTimestamps?: () => void,
-  apiFetch?: (endpoint: string, options?: RequestInit) => Promise<any>
+  apiFetch?: (endpoint: string, options?: RequestInit) => Promise<any>,
+  onExport?: () => void,
+  onImport?: (event: React.ChangeEvent<HTMLInputElement>) => void
 }> = ({ initialText, onBack, isStandalone, onSaveNote, onSaveVoice, playbackMode = false, initialAudioUrl, isTouch = false, initialSegments, onEditTimestamps, apiFetch = async (url, options) => {
   const response = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } });
   if (!response.ok) throw new Error(await response.text());
   return response.json();
-} }) => {
+}, onExport, onImport }) => {
   // Load settings from localStorage
   const savedSettings = getStorageItem<Record<string, any>>(STORAGE_KEYS.SHADOW_SETTINGS, {});
 
@@ -1943,7 +1946,41 @@ const ShadowReader: React.FC<{
                 </div>
               </div>
 
-              {/* CTA Removed: Moved to Header Next Button */}
+              {/* Data Backup & Sync */}
+              <div className="pt-8 border-t border-white/5 space-y-4">
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-sm font-medium text-neutral-400 ml-1">Backup & Sync</h3>
+                  <p className="text-xs text-neutral-600 ml-1 leading-relaxed">
+                    On Vercel, data is stored in your browser's local storage. Use export/import to move data between devices.
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3 px-1">
+                  <button
+                    onClick={onExport}
+                    className="flex items-center justify-center gap-2 bg-neutral-800/50 hover:bg-neutral-800 text-neutral-300 py-3 rounded-xl border border-white/10 transition-colors"
+                  >
+                    <Download size={16} />
+                    <span className="text-sm">Export</span>
+                  </button>
+                  
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={onImport}
+                      className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                    />
+                    <button
+                      className="w-full flex items-center justify-center gap-2 bg-neutral-800/50 hover:bg-neutral-800 text-neutral-300 py-3 rounded-xl border border-white/10 transition-colors"
+                    >
+                      <Upload size={16} />
+                      <span className="text-sm">Import</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               </div>
             </motion.div>
           )}
@@ -4101,7 +4138,20 @@ export default function App() {
 
   // Persistence: Fetch from DB on mount
   useEffect(() => {
+    const isVercel = window.location.hostname.includes('vercel.app');
+    
     const migrateData = async () => {
+      // On Vercel, we always want to ensure local storage is the source of truth
+      // because the server filesystem is ephemeral (/tmp)
+      if (isVercel) {
+        // Just fetch what's on the server to see if there's anything new
+        // But our "Hybrid" fetch handles this now
+        fetchNotes();
+        fetchVoices();
+        fetchAssociations();
+        return;
+      }
+
       const isMigrated = localStorage.getItem('shadow-reader-db-migrated');
       if (isMigrated === 'true') {
         // Already migrated, just fetch
@@ -4146,7 +4196,10 @@ export default function App() {
   const fetchNotes = async () => {
     try {
       const data = await apiFetch('/api/notes');
-      setNotes(data || []);
+      if (data && data.length > 0) {
+        setNotes(data);
+        setStorageItem(STORAGE_KEYS.NOTES, data);
+      }
     } catch (error) {
       console.error('Failed to fetch notes:', error);
     }
@@ -4155,7 +4208,10 @@ export default function App() {
   const fetchVoices = async () => {
     try {
       const data = await apiFetch('/api/voices');
-      setSavedVoices(data || []);
+      if (data && data.length > 0) {
+        setSavedVoices(data);
+        setStorageItem(STORAGE_KEYS.SAVED_VOICES, data);
+      }
     } catch (error) {
       console.error('Failed to fetch voices:', error);
     }
@@ -4164,7 +4220,10 @@ export default function App() {
   const fetchAssociations = async () => {
     try {
       const data = await apiFetch('/api/associations');
-      setSentenceVoiceAssociations(data || {});
+      if (data && Object.keys(data).length > 0) {
+        setSentenceVoiceAssociations(data);
+        setStorageItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, data);
+      }
     } catch (error) {
       console.error('Failed to fetch associations:', error);
     }
@@ -4177,10 +4236,12 @@ export default function App() {
         method: 'POST',
         body: JSON.stringify({ sentenceKey, voiceIds })
       });
-      setSentenceVoiceAssociations(prev => ({
-        ...prev,
+      const newAssociations = {
+        ...sentenceVoiceAssociations,
         [sentenceKey]: voiceIds
-      }));
+      };
+      setSentenceVoiceAssociations(newAssociations);
+      setStorageItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, newAssociations);
     } catch (error) {
       console.error('Failed to update associations:', error);
     }
@@ -4240,7 +4301,9 @@ export default function App() {
   const handleDeleteNote = async (id: string) => {
     try {
       await apiFetch(`/api/notes/${id}`, { method: 'DELETE' });
-      setNotes(prev => prev.filter(n => n.id !== id));
+      const newNotes = notes.filter(n => n.id !== id);
+      setNotes(newNotes);
+      setStorageItem(STORAGE_KEYS.NOTES, newNotes);
       if (selectedNote?.id === id) {
         setNotesView('list');
         setSelectedNote(null);
@@ -4256,12 +4319,16 @@ export default function App() {
         method: 'POST',
         body: JSON.stringify(updatedNote)
       });
-      if (isNewNote) {
-        setNotes(prev => [savedNote, ...prev]);
-        setIsNewNote(false);
+      let newNotes = [...notes];
+      const index = newNotes.findIndex(n => n.id === savedNote.id);
+      if (index >= 0) {
+        newNotes[index] = savedNote;
       } else {
-        setNotes(prev => prev.map(n => n.id === savedNote.id ? savedNote : n));
+        newNotes.unshift(savedNote);
       }
+      setNotes(newNotes);
+      setStorageItem(STORAGE_KEYS.NOTES, newNotes);
+      setIsNewNote(false);
       setSelectedNote(savedNote);
     } catch (error) {
       console.error('Failed to update note:', error);
@@ -4292,11 +4359,14 @@ Shadowing Practice
         method: 'POST',
         body: JSON.stringify(newNote)
       });
-      await fetchNotes();
+      const newNotes = [newNote, ...notes];
+      setNotes(newNotes);
+      setStorageItem(STORAGE_KEYS.NOTES, newNotes);
     } catch (error) {
       console.error('Failed to save shadow note:', error);
-      // Fallback to local state if server fails
-      setNotes(prev => [newNote, ...prev]);
+      const newNotes = [newNote, ...notes];
+      setNotes(newNotes);
+      setStorageItem(STORAGE_KEYS.NOTES, newNotes);
     }
   };
 
@@ -4321,9 +4391,91 @@ Shadowing Practice
         method: 'POST',
         body: JSON.stringify(newVoice)
       });
-      await fetchVoices();
+      const newVoices = [newVoice, ...savedVoices];
+      setSavedVoices(newVoices);
+      setStorageItem(STORAGE_KEYS.SAVED_VOICES, newVoices);
     } catch (error) {
       console.error('Failed to save voice:', error);
+      const newVoices = [newVoice, ...savedVoices];
+      setSavedVoices(newVoices);
+      setStorageItem(STORAGE_KEYS.SAVED_VOICES, newVoices);
+    }
+  };
+
+  const handleExportData = () => {
+    const data = {
+      notes,
+      voices: savedVoices,
+      associations: sentenceVoiceAssociations,
+      settings: getStorageItem(STORAGE_KEYS.SHADOW_SETTINGS, {}),
+      version: '1.0.0',
+      exportDate: new Date().toISOString()
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `shadow-reader-data-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      
+      if (confirm('Importing data will MERGE with your existing data. Continue?')) {
+        // Merge Notes
+        if (data.notes) {
+          const mergedNotes = [...data.notes];
+          notes.forEach(localNote => {
+            if (!mergedNotes.some(n => n.id === localNote.id)) {
+              mergedNotes.push(localNote);
+            }
+          });
+          setNotes(mergedNotes);
+          setStorageItem(STORAGE_KEYS.NOTES, mergedNotes);
+        }
+
+        // Merge Voices
+        if (data.voices) {
+          const mergedVoices = [...data.voices];
+          savedVoices.forEach(localVoice => {
+            if (!mergedVoices.some(v => v.id === localVoice.id)) {
+              mergedVoices.push(localVoice);
+            }
+          });
+          setSavedVoices(mergedVoices);
+          setStorageItem(STORAGE_KEYS.SAVED_VOICES, mergedVoices);
+        }
+
+        // Merge Associations
+        if (data.associations) {
+          const mergedAssoc = { ...sentenceVoiceAssociations, ...data.associations };
+          setSentenceVoiceAssociations(mergedAssoc);
+          setStorageItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, mergedAssoc);
+        }
+
+        // Sync to server
+        await apiFetch('/api/migrate', {
+          method: 'POST',
+          body: JSON.stringify({
+            notes: data.notes || notes,
+            voices: data.voices || savedVoices,
+            associations: data.associations || sentenceVoiceAssociations
+          })
+        });
+
+        alert('Data imported and synced successfully!');
+      }
+    } catch (error) {
+      console.error('Import failed:', error);
+      alert('Failed to import data. Please check the file format.');
     }
   };
 
@@ -4424,6 +4576,8 @@ Shadowing Practice
             initialSegments={activeVoice ? editedTimestamps[activeVoice.id] : undefined}
             onEditTimestamps={activeVoice ? () => handleEditTimestamps(activeVoice, true) : undefined}
             apiFetch={apiFetch}
+            onExport={handleExportData}
+            onImport={handleImportData}
           />
         );
       case 'voice':
