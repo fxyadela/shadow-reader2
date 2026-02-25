@@ -1730,10 +1730,10 @@ const ShadowReader: React.FC<{
                                 </button>
                                 {showEmotionDropdown && (
                                   <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
+                                    initial={{ opacity: 0, y: -10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 10 }}
-                                    className="absolute bottom-full left-0 right-0 mb-2 bg-neutral-800 rounded-lg border border-white/10 overflow-hidden z-50"
+                                    exit={{ opacity: 0, y: -10 }}
+                                    className="absolute top-full left-0 right-0 mt-2 bg-neutral-800 rounded-lg border border-white/10 overflow-hidden z-50"
                                   >
                                     {EMOTIONS.map(e => (
                                       <button
