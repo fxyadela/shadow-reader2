@@ -1626,7 +1626,12 @@ const ShadowReader: React.FC<{
                     <label className="text-sm font-medium text-neutral-400 ml-1">Model</label>
                     <div className="relative">
                       <button
-                        onClick={() => setShowModelDropdown(!showModelDropdown)}
+                        onClick={() => {
+                          setShowModelDropdown(!showModelDropdown);
+                          setShowVoiceDropdown(false);
+                          setShowEmotionDropdown(false);
+                          setShowSoundEffectDropdown(false);
+                        }}
                         className="w-full flex items-center justify-between bg-neutral-800/50 text-white p-3 pr-10 rounded-xl border border-white/10 focus:border-teal-500/30"
                       >
                         <span>{model}</span>
@@ -1658,7 +1663,13 @@ const ShadowReader: React.FC<{
                     <div className="flex justify-between items-center ml-1">
                       <label className="text-sm font-medium text-neutral-400">Voice</label>
                       <button 
-                        onClick={() => setIsAddingVoice(!isAddingVoice)}
+                        onClick={() => {
+                          setIsAddingVoice(!isAddingVoice);
+                          setShowModelDropdown(false);
+                          setShowVoiceDropdown(false);
+                          setShowEmotionDropdown(false);
+                          setShowSoundEffectDropdown(false);
+                        }}
                         className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1"
                       >
                         <Plus size={12} /> Add New
@@ -1700,7 +1711,12 @@ const ShadowReader: React.FC<{
                     ) : (
                       <div className="relative">
                         <button
-                          onClick={() => setShowVoiceDropdown(!showVoiceDropdown)}
+                          onClick={() => {
+                            setShowVoiceDropdown(!showVoiceDropdown);
+                            setShowModelDropdown(false);
+                            setShowEmotionDropdown(false);
+                            setShowSoundEffectDropdown(false);
+                          }}
                           className="w-full flex items-center justify-between bg-neutral-800/50 text-white p-3 pr-10 rounded-xl border border-white/10 focus:border-teal-500/30"
                         >
                           <span>{voices.find(v => v.id === selectedVoice)?.name} • {voices.find(v => v.id === selectedVoice)?.accent}</span>
@@ -1796,7 +1812,12 @@ const ShadowReader: React.FC<{
                               <label className="text-xs text-neutral-500">Emotion</label>
                               <div className="relative">
                                 <button
-                                  onClick={() => setShowEmotionDropdown(!showEmotionDropdown)}
+                                  onClick={() => {
+                                    setShowEmotionDropdown(!showEmotionDropdown);
+                                    setShowModelDropdown(false);
+                                    setShowVoiceDropdown(false);
+                                    setShowSoundEffectDropdown(false);
+                                  }}
                                   className="w-full flex items-center justify-between bg-neutral-800/50 text-neutral-300 text-sm p-2.5 pr-8 rounded-lg border border-white/10"
                                 >
                                   <span>{emotion}</span>
@@ -1870,7 +1891,12 @@ const ShadowReader: React.FC<{
                               <label className="text-xs text-neutral-500">Sound Effect</label>
                               <div className="relative">
                                 <button
-                                  onClick={() => setShowSoundEffectDropdown(!showSoundEffectDropdown)}
+                                  onClick={() => {
+                                    setShowSoundEffectDropdown(!showSoundEffectDropdown);
+                                    setShowModelDropdown(false);
+                                    setShowVoiceDropdown(false);
+                                    setShowEmotionDropdown(false);
+                                  }}
                                   className="w-full flex items-center justify-between bg-neutral-800/50 text-neutral-300 text-sm p-2.5 pr-8 rounded-lg border border-white/10"
                                 >
                                   <span>{SOUND_EFFECTS.find(s => s.id === soundEffect)?.name || 'None'}</span>
@@ -2028,7 +2054,10 @@ const ShadowReader: React.FC<{
                   {/* Translate */}
                   <div className="relative group">
                     <button
-                      onClick={() => setShowLangPopup(!showLangPopup)}
+                      onClick={() => {
+                        setShowLangPopup(!showLangPopup);
+                        setShowSpeedPopup(false);
+                      }}
                       className={`p-3 rounded-full transition-colors ${isTextTranslated ? 'text-teal-400 bg-teal-900/30' : 'text-neutral-400 hover:text-white'}`}
                       title={isTextTranslated ? "Restore original text" : "Translate"}
                     >
@@ -2046,7 +2075,10 @@ const ShadowReader: React.FC<{
                   {/* Speed */}
                   <div className="relative group">
                     <button
-                      onClick={() => setShowSpeedPopup(!showSpeedPopup)}
+                      onClick={() => {
+                        setShowSpeedPopup(!showSpeedPopup);
+                        setShowLangPopup(false);
+                      }}
                       className="px-3 py-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors text-sm font-medium"
                       title="Playback speed"
                     >
@@ -3099,7 +3131,10 @@ const NotesDetail: React.FC<{
                 {detailVoiceList.length > 1 && (
                   <div className="relative">
                     <button
-                      onClick={() => setShowVoiceListPopup(!showVoiceListPopup)}
+                      onClick={() => {
+                        setShowVoiceListPopup(!showVoiceListPopup);
+                        setShowDetailSpeedPopup(false);
+                      }}
                       className="p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
                       title="Voice list"
                     >
@@ -3162,7 +3197,10 @@ const NotesDetail: React.FC<{
                 {/* Speed */}
                 <div className="relative group flex-shrink-0">
                   <button
-                    onClick={() => setShowDetailSpeedPopup(!showDetailSpeedPopup)}
+                    onClick={() => {
+                      setShowDetailSpeedPopup(!showDetailSpeedPopup);
+                      setShowVoiceListPopup(false);
+                    }}
                     className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors text-xs font-medium min-w-[28px]"
                     title="Playback speed"
                   >
