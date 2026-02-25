@@ -3137,9 +3137,11 @@ const TimestampEditor: React.FC<{
   onClose: () => void;
   isTouch?: boolean;
 }> = ({ voice, initialSegments, audioUrl, onSave, onClose, isTouch = false }) => {
+  // Use initialSegments if provided, otherwise parse from voice text
   const [segments, setSegments] = useState<LyricSegment[]>(initialSegments);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [audioDuration, setAudioDuration] = useState(voice.duration || 60);
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -3148,6 +3150,9 @@ const TimestampEditor: React.FC<{
   useEffect(() => {
     const newAudio = new Audio(audioUrl);
     newAudio.addEventListener('ended', () => setIsPlaying(false));
+    newAudio.addEventListener('loadedmetadata', () => {
+      setAudioDuration(newAudio.duration);
+    });
     setAudio(newAudio);
     return () => {
       newAudio.pause();
@@ -3254,7 +3259,22 @@ const TimestampEditor: React.FC<{
   };
 
   const handleSave = () => {
-    onSave(segments);
+    // Recalculate timestamps proportionally based on text length to match audio
+    const totalTextLength = segments.reduce((sum, s) => sum + s.text.length, 0);
+    let accumulatedTime = 0;
+    const recalculatedSegments = segments.map((seg) => {
+      const proportion = totalTextLength > 0 ? seg.text.length / totalTextLength : 1 / segments.length;
+      const duration = proportion * audioDuration;
+      const newStartTime = accumulatedTime;
+      const newEndTime = accumulatedTime + duration;
+      accumulatedTime = newEndTime;
+      return {
+        ...seg,
+        startTime: newStartTime,
+        endTime: newEndTime
+      };
+    });
+    onSave(recalculatedSegments);
   };
 
   const formatTime = (time: number) => {
