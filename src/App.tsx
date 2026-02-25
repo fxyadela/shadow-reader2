@@ -677,6 +677,8 @@ const ShadowReader: React.FC<{
   const [translatedSegments, setTranslatedSegments] = useState<string[]>([]);
   const [isTranslating, setIsTranslating] = useState(false);
   const [showLangPopup, setShowLangPopup] = useState(false);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [showVoiceDropdown, setShowVoiceDropdown] = useState(false);
   const [isTextTranslated, setIsTextTranslated] = useState(false);
   const [originalTextBeforeTranslation, setOriginalTextBeforeTranslation] = useState('');
 
@@ -1496,10 +1498,10 @@ const ShadowReader: React.FC<{
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  className="w-full h-full bg-transparent text-neutral-200 py-4 px-6 pr-20 outline-none resize-none text-xl font-semibold leading-relaxed placeholder:text-neutral-600 placeholder:font-semibold placeholder:text-left text-left overflow-y-auto"
+                  className="w-full h-full bg-transparent text-neutral-200 py-4 px-6 outline-none resize-none text-xl font-semibold leading-relaxed placeholder:text-neutral-600 placeholder:font-semibold placeholder:text-left text-left overflow-y-auto"
                   placeholder="Paste your learning material here..."
                 />
-                <div className="absolute top-0 right-0 flex gap-2 mt-6 mr-4">
+                <div className="absolute bottom-4 right-4 flex gap-2">
                   {text && (
                     <button
                       onClick={() => setText('')}
@@ -1547,14 +1549,31 @@ const ShadowReader: React.FC<{
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-neutral-400 ml-1">Model</label>
                     <div className="relative">
-                      <select 
-                        value={model}
-                        onChange={(e) => setModel(e.target.value)}
-                        className="w-full appearance-none bg-neutral-800/50 text-white p-3 pr-10 rounded-xl border border-white/10 focus:border-teal-500/30 outline-none"
+                      <button
+                        onClick={() => setShowModelDropdown(!showModelDropdown)}
+                        className="w-full flex items-center justify-between bg-neutral-800/50 text-white p-3 pr-10 rounded-xl border border-white/10 focus:border-teal-500/30"
                       >
-                        {MODELS.map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none" size={16} />
+                        <span>{model}</span>
+                        <ChevronDown className="text-neutral-500" size={16} />
+                      </button>
+                      {showModelDropdown && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="absolute top-full left-0 right-0 mt-2 bg-neutral-800 rounded-xl border border-white/10 overflow-hidden z-50"
+                        >
+                          {MODELS.map(m => (
+                            <button
+                              key={m}
+                              onClick={() => { setModel(m); setShowModelDropdown(false); }}
+                              className={`w-full text-left px-4 py-3 hover:bg-white/10 transition-colors ${model === m ? 'text-teal-400 bg-teal-900/20' : 'text-white'}`}
+                            >
+                              {m}
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
                     </div>
                   </div>
 
@@ -1604,16 +1623,31 @@ const ShadowReader: React.FC<{
                       </div>
                     ) : (
                       <div className="relative">
-                        <select 
-                          value={selectedVoice}
-                          onChange={(e) => setSelectedVoice(e.target.value)}
-                          className="w-full appearance-none bg-neutral-800/50 text-white p-3 pr-10 rounded-xl border border-white/10 focus:border-teal-500/30 outline-none"
+                        <button
+                          onClick={() => setShowVoiceDropdown(!showVoiceDropdown)}
+                          className="w-full flex items-center justify-between bg-neutral-800/50 text-white p-3 pr-10 rounded-xl border border-white/10 focus:border-teal-500/30"
                         >
-                          {voices.map(v => (
-                            <option key={v.id} value={v.id}>{v.name} • {v.accent}</option>
-                          ))}
-                        </select>
-                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none" size={16} />
+                          <span>{voices.find(v => v.id === selectedVoice)?.name} • {voices.find(v => v.id === selectedVoice)?.accent}</span>
+                          <ChevronDown className="text-neutral-500" size={16} />
+                        </button>
+                        {showVoiceDropdown && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="absolute top-full left-0 right-0 mt-2 bg-neutral-800 rounded-xl border border-white/10 overflow-hidden z-50 max-h-60 overflow-y-auto"
+                          >
+                            {voices.map(v => (
+                              <button
+                                key={v.id}
+                                onClick={() => { setSelectedVoice(v.id); setShowVoiceDropdown(false); }}
+                                className={`w-full text-left px-4 py-3 hover:bg-white/10 transition-colors ${selectedVoice === v.id ? 'text-teal-400 bg-teal-900/20' : 'text-white'}`}
+                              >
+                                {v.name} • {v.accent}
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
                       </div>
                     )}
                   </div>
