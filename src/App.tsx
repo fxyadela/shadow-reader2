@@ -1370,7 +1370,14 @@ const ShadowReader: React.FC<{
           <div className="flex items-center gap-2">
             {playbackMode && onEditTimestamps && (
               <button
-                onClick={onEditTimestamps}
+                onClick={() => {
+                  // Pause audio before entering timestamp editor
+                  if (audio) {
+                    audio.pause();
+                    setIsPlaying(false);
+                  }
+                  onEditTimestamps();
+                }}
                 className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
                 title="Edit Timestamps"
               >
