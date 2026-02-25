@@ -1504,18 +1504,9 @@ const ShadowReader: React.FC<{
                         {isTranslating ? <Loader2 size={16} className="animate-spin" /> : <Languages size={16} />}
                       </button>
                       <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-bottom-right transition-opacity ${isTouch ? (showLangPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
-                        <button onClick={() => { handleTranslate('zh'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'zh' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
-                          <span>🇨🇳</span>
-                          {translationLang === 'zh' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
-                        </button>
-                        <button onClick={() => { handleTranslate('ja'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'ja' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
-                          <span>🇯🇵</span>
-                          {translationLang === 'ja' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
-                        </button>
-                        <button onClick={() => { handleTranslate('ko'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'ko' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
-                          <span>🇰🇷</span>
-                          {translationLang === 'ko' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
-                        </button>
+                        <button onClick={() => { handleTranslate('zh'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'zh' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇨🇳</button>
+                        <button onClick={() => { handleTranslate('ja'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ja' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇯🇵</button>
+                        <button onClick={() => { handleTranslate('ko'); setShowLangPopup(false); }} className={`text-lg p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ko' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇰🇷</button>
                       </div>
                     </div>
                   )}
@@ -1827,9 +1818,11 @@ const ShadowReader: React.FC<{
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-20">
-                  <Loader2 className="animate-spin mx-auto text-neutral-500 mb-4" size={32} />
-                  <p className="text-neutral-500">Analyzing audio...</p>
+                <div className="fixed inset-0 flex items-center justify-center bg-[#09090b]/80 z-40">
+                  <div className="text-center">
+                    <Loader2 className="animate-spin mx-auto text-teal-400 mb-4" size={48} />
+                    <p className="text-neutral-400 text-lg">Analyzing audio...</p>
+                  </div>
                 </div>
               )}
               </motion.div>
@@ -1907,18 +1900,9 @@ const ShadowReader: React.FC<{
 
                     {/* Language Selector Popup - toggle on click for touch devices, hover on desktop */}
                     <div className={`absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-2 shadow-xl flex flex-col gap-1 z-50 origin-bottom-right transition-opacity ${isTouch ? (showLangPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'}`}>
-                       <button onClick={() => { handleTranslate('zh'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'zh' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
-                         <span>🇨🇳</span>
-                         {translationLang === 'zh' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
-                       </button>
-                       <button onClick={() => { handleTranslate('ja'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'ja' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
-                         <span>🇯🇵</span>
-                         {translationLang === 'ja' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
-                       </button>
-                       <button onClick={() => { handleTranslate('ko'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 flex items-center justify-between gap-2 ${translationLang === 'ko' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>
-                         <span>🇰🇷</span>
-                         {translationLang === 'ko' && isTextTranslated && <span className="text-xs text-teal-400">✓</span>}
-                       </button>
+                       <button onClick={() => { handleTranslate('zh'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'zh' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇨🇳</button>
+                       <button onClick={() => { handleTranslate('ja'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ja' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇯🇵</button>
+                       <button onClick={() => { handleTranslate('ko'); setShowLangPopup(false); }} className={`text-xl p-2 rounded-lg hover:bg-white/10 ${translationLang === 'ko' && isTextTranslated ? 'bg-teal-600/30' : ''}`}>🇰🇷</button>
                     </div>
                   </div>
 
