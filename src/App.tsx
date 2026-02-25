@@ -1715,7 +1715,7 @@ const ShadowReader: React.FC<{
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="h-[calc(100vh-200px)] overflow-y-auto no-scrollbar pb-48 px-2 [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)] scroll-smooth"
+              className="fixed inset-x-0 top-[60px] bottom-16 overflow-y-auto no-scrollbar pb-48 px-2 [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)] scroll-smooth"
               ref={containerRef}
               style={{ scrollBehavior: 'smooth' }}
             >
@@ -3113,49 +3113,48 @@ const VoiceCollection: React.FC<{
                     </button>
                   </div>
                 ) : (
-                  <h3
-                    className="text-lg font-medium text-neutral-200 mb-2 line-clamp-2 cursor-pointer hover:text-teal-400"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingId(voice.id);
-                      setEditName(voice.title);
-                    }}
-                  >
-                    {voice.title}
-                  </h3>
-                )}
-
-                <div className="flex items-center justify-between mt-4">
-                  <button
-                    onClick={() => onPlayVoice(voice)}
-                    className="flex items-center gap-2 px-4 py-2 text-neutral-400 hover:text-teal-400 transition-colors"
-                  >
-                    <Play size={16} fill="currentColor" />
-                    <span className="text-xs font-medium">Play Session</span>
-                  </button>
-
-                  <div className="flex items-center gap-3">
-                    <button
+                  <div className="flex items-center justify-between mt-4">
+                    <h3
+                      className="text-lg font-medium text-neutral-200 line-clamp-2 cursor-pointer hover:text-teal-400"
                       onClick={(e) => {
                         e.stopPropagation();
-                        const link = document.createElement('a');
-                        link.href = voice.audioUrl;
-                        link.download = `${voice.title || 'voice-recording'}.mp3`;
-                        link.target = '_blank';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
+                        setEditingId(voice.id);
+                        setEditName(voice.title);
                       }}
-                      className="text-neutral-500 hover:text-teal-400 transition-colors"
-                      title="Download"
                     >
-                      <Download size={18} fill="currentColor" />
-                    </button>
-                    <span className="text-xs text-neutral-500 font-mono">
-                      {Math.floor(voice.duration / 60)}:{Math.floor(voice.duration % 60).toString().padStart(2, '0')}
-                    </span>
+                      {voice.title}
+                    </h3>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => onPlayVoice(voice)}
+                        className="flex items-center gap-2 px-3 py-1.5 text-neutral-400 hover:text-teal-400 transition-colors"
+                      >
+                        <Play size={14} fill="currentColor" />
+                        <span className="text-xs font-medium">Play</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const link = document.createElement('a');
+                          link.href = voice.audioUrl;
+                          link.download = `${voice.title || 'voice-recording'}.mp3`;
+                          link.target = '_blank';
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}
+                        className="text-neutral-500 hover:text-teal-400 transition-colors"
+                        title="Download"
+                      >
+                        <Download size={18} fill="currentColor" />
+                      </button>
+                      <span className="text-xs text-neutral-500 font-mono">
+                        {Math.floor(voice.duration / 60)}:{Math.floor(voice.duration % 60).toString().padStart(2, '0')}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             );
           })
