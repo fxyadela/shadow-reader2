@@ -44,7 +44,8 @@ import {
   Upload,
   Gauge,
   Menu,
-  Share
+  Share,
+  Star
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -131,7 +132,9 @@ const STORAGE_KEYS = {
   SAVED_VOICES: 'shadow-reader-voices',
   SHADOW_SETTINGS: 'shadow-reader-settings',
   SENTENCE_VOICE_ASSOCIATIONS: 'shadow-reader-sentence-voice-associations',
-  EDITED_TIMESTAMPS: 'shadow-reader-edited-timestamps'
+  EDITED_TIMESTAMPS: 'shadow-reader-edited-timestamps',
+  WORDS: 'shadow-reader-words',
+  TRANSLATION_CACHE: 'shadow-reader-translation-cache-v2'
 } as const;
 
 // Generic get/set for localStorage
@@ -152,9 +155,212 @@ const setStorageItem = <T,>(key: string, value: T): void => {
   }
 };
 
-// ==========================================
-// HOOK: TOUCH DEVICE DETECTION
-// ==========================================
+const handleWordClickGlobal = async (
+  word: string, 
+  setWordModal: (val: any) => void
+) => {
+  // 1. Check Cache first
+  const cacheKey = `tr-${word.toLowerCase()}`;
+  const cached = getStorageItem<any>(STORAGE_KEYS.TRANSLATION_CACHE, {})[cacheKey];
+  if (cached) {
+    setWordModal({ 
+      word, 
+      translation: cached.translation, 
+      loading: false,
+      structuredData: cached.structuredData
+    });
+    return;
+  }
+
+  setWordModal({ word, translation: undefined, loading: true });
+  try {
+    const data = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: word, targetLang: 'zh' })
+    }).then(r => r.json());
+    
+    if (data && data.translatedText) {
+      let structuredData = null;
+      try {
+        structuredData = JSON.parse(data.translatedText);
+      } catch (e) {
+        console.log('Not a JSON translation');
+      }
+      
+      const translation = structuredData ? (structuredData.fullTranslation || "") : data.translatedText;
+      
+      // 2. Save to Cache
+      const currentCache = getStorageItem<any>(STORAGE_KEYS.TRANSLATION_CACHE, {});
+      currentCache[cacheKey] = { translation, structuredData };
+      // Limit cache size to 200 items to avoid LocalStorage overflow
+      const keys = Object.keys(currentCache);
+      if (keys.length > 200) {
+        delete currentCache[keys[0]];
+      }
+      setStorageItem(STORAGE_KEYS.TRANSLATION_CACHE, currentCache);
+
+      setWordModal({ 
+        word, 
+        translation, 
+        loading: false,
+        structuredData
+      });
+    } else {
+      setWordModal({ word, translation: undefined, loading: false });
+    }
+  } catch {
+    setWordModal({ word, translation: undefined, loading: false });
+  }
+};
+
+const WordTextGlobal: React.FC<{ 
+  text: string; 
+  className?: string; 
+  onWordClick: (word: string) => void;
+}> = ({ text, className, onWordClick }) => {
+  const parts = text.split(/([A-Za-z][A-Za-z']*)/g);
+  return (
+    <p className={className}>
+      {parts.map((part, idx) =>
+        /[A-Za-z][A-Za-z']*/.test(part) ? (
+          <span
+            key={idx}
+            onClick={(e) => {
+              e.stopPropagation();
+              onWordClick(part);
+            }}
+            className="cursor-pointer hover:text-teal-300"
+          >
+            {part}
+          </span>
+        ) : (
+          <span key={idx}>{part}</span>
+        )
+      )}
+    </p>
+  );
+};
+
+const WordModalUI: React.FC<{
+  wordModal: any;
+  setWordModal: (val: any) => void;
+  onAddWord: (word: string, translation?: string) => void;
+  onShowToast: (msg: string) => void;
+}> = ({ wordModal, setWordModal, onAddWord, onShowToast }) => {
+  if (!wordModal) return null;
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setWordModal(null)}>
+      <div className="absolute inset-0 bg-black/60" />
+      <div className="relative bg-[#18181b] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        {/* Top Right Icons */}
+        <div className="absolute top-4 right-4 flex items-center gap-3">
+          <button
+            onClick={() => {
+              onAddWord(wordModal.word, wordModal.translation);
+              setWordModal(null);
+              onShowToast('已收藏到 Words');
+            }}
+            className="p-1.5 rounded-full hover:bg-white/5 text-teal-400 transition-colors"
+            title="收藏单词"
+          >
+            <Star size={20} />
+          </button>
+          <button
+            onClick={() => setWordModal(null)}
+            className="p-1.5 rounded-full hover:bg-white/5 text-neutral-400 hover:text-white transition-colors"
+            title="关闭"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="pr-0"> {/* Remove global padding to maximize width */}
+          <div className="max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+            {wordModal.loading ? (
+              <div className="flex items-center gap-2 py-4">
+                <Loader2 size={18} className="animate-spin text-teal-500" />
+                <span className="text-neutral-400 text-sm">正在获取翻译...</span>
+              </div>
+            ) : (
+              <div className="space-y-4 py-1">
+                {/* User style (Word/Phrase) */}
+                {wordModal.structuredData?.type === 'word' ? (
+                  <div className="space-y-4 text-sm sm:text-base leading-relaxed">
+                    <p className="text-neutral-200 pr-20"> {/* Only padding for the first paragraph to avoid icons */}
+                      “<span className="text-teal-400 font-bold">{wordModal.word}</span>” {wordModal.structuredData.meaningDesc || wordModal.translation}
+                    </p>
+                    {(wordModal.structuredData.partOfSpeech || wordModal.structuredData.phonetic) && (
+                      <div className="space-y-2 pt-3 border-t border-white/5">
+                        {wordModal.structuredData.partOfSpeech && (
+                          <div className="flex gap-3">
+                            <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">词性 ：</span>
+                            <span className="text-neutral-300">{wordModal.structuredData.partOfSpeech}</span>
+                          </div>
+                        )}
+                        {wordModal.structuredData.phonetic && (
+                          <div className="flex gap-3 items-start">
+                            <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">音标 ：</span>
+                            <span className="text-neutral-300 font-mono break-all leading-tight">
+                              {wordModal.structuredData.phonetic}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Sentence/Simple Style */
+                  <div className="text-neutral-200 text-sm leading-relaxed whitespace-pre-wrap">
+                    {wordModal.structuredData?.fullTranslation || wordModal.translation || '无翻译'}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SelectionTranslator: React.FC<{
+  selection: any;
+  setSelection: (val: any) => void;
+  onTranslate: (text: string) => void;
+}> = ({ selection, setSelection, onTranslate }) => {
+  if (!selection) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.8 }}
+        style={{
+          position: 'fixed',
+          left: selection.x,
+          top: selection.y - 40,
+          transform: 'translateX(-50%)',
+          zIndex: 100,
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onTranslate(selection.text);
+          setSelection(null);
+          // Clear selection visually
+          window.getSelection()?.removeAllRanges();
+        }}
+      >
+        <button className="bg-teal-500 text-black px-3 py-1.5 rounded-full text-xs font-bold shadow-xl flex items-center gap-1.5 hover:bg-teal-400 transition-colors">
+          <Languages size={14} />
+          <span>翻译词组</span>
+        </button>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
 
 const useIsTouchDevice = () => {
   const [isTouch, setIsTouch] = useState(false);
@@ -316,7 +522,7 @@ const useSwipeToBack = (onBack: () => void, enabled: boolean = true) => {
 // SHARED TYPES & CONSTANTS
 // ==========================================
 
-type MainTab = 'notes' | 'shadow' | 'voice';
+ type MainTab = 'notes' | 'shadow' | 'voice' | 'words';
 type NotesView = 'list' | 'detail';
 
 interface Note {
@@ -544,6 +750,15 @@ const parseNoteContent = (raw: string) => {
     }
   }
 
+ interface WordItem {
+   id: string;
+   word: string;
+   translation?: string;
+   createdAt: number;
+   noteId: string;
+   noteTitle: string;
+ }
+
   return sections;
 };
 
@@ -618,45 +833,145 @@ const calculateLyricsTimestamps = (segments: LyricSegment[], totalDuration: numb
 };
 
 // ==========================================
-// COMPONENT: HIGHLIGHTED TEXT
+// COMPONENT: HIGHLIGHTED TEXT WITH CLICK
 // ==========================================
 
-const HighlightedText: React.FC<{ text: string, stress: string, linking: string }> = ({ text, stress, linking }) => {
+const HighlightedTextWithClick: React.FC<{
+  text: string;
+  stress: string;
+  linking: string;
+  onWordClick: (word: string) => void;
+}> = ({ text, stress, linking, onWordClick }) => {
   const stressWords = stress.split(/[,，]/).map(w => w.trim()).filter(Boolean);
   const linkingPhrases = linking.split(/[,，]/).map(p => {
     const match = p.match(/(.*?)(?:→|->)/);
     return match ? match[1].trim() : p.trim();
   }).filter(Boolean);
 
-  let htmlText = text;
-  
+  // Process text to find highlighted words
   const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+  // Build a list of all highlights with their positions
   const allHighlights = [
-    ...linkingPhrases.map(p => ({ word: p, type: 'linking' })),
-    ...stressWords.map(w => ({ word: w, type: 'stress' }))
-  ].sort((a, b) => b.word.length - a.word.length);
+    ...linkingPhrases.map(p => ({ word: p, type: 'linking' as const })),
+    ...stressWords.map(w => ({ word: w, type: 'stress' as const }))
+  ];
 
-  let counter = 0;
-  const placeholders: Record<string, string> = {};
+  // Find all matches and their positions
+  const matches: Array<{
+    start: number;
+    end: number;
+    word: string;
+    type: 'stress' | 'linking';
+  }> = [];
 
   allHighlights.forEach(({ word, type }) => {
     if (!word) return;
     const regex = new RegExp(`\\b(${escapeRegExp(word)})\\b`, 'gi');
-    const colorClass = type === 'stress' ? 'text-rose-400 font-semibold' : 'text-teal-400 font-semibold underline decoration-teal-500/30 underline-offset-4';
-    
-    htmlText = htmlText.replace(regex, (match) => {
-      const id = `__HL_${counter++}__`;
-      placeholders[id] = `<span class="${colorClass}">${match}</span>`;
-      return id;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      matches.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        word: match[0],
+        type
+      });
+    }
+  });
+
+  // Sort by position and remove overlaps (prioritize longer matches)
+  matches.sort((a, b) => a.start - b.start);
+  const filteredMatches: typeof matches = [];
+  let lastEnd = 0;
+  matches.forEach(m => {
+    if (m.start >= lastEnd) {
+      filteredMatches.push(m);
+      lastEnd = m.end;
+    }
+  });
+
+  // Build the render array
+  const renderParts: Array<{
+    text: string;
+    isHighlight?: boolean;
+    highlightType?: 'stress' | 'linking';
+    isWord?: boolean;
+  }> = [];
+
+  let currentIndex = 0;
+  filteredMatches.forEach(({ start, end, word, type }) => {
+    // Add non-highlighted text before this match
+    if (start > currentIndex) {
+      const beforeText = text.slice(currentIndex, start);
+      // Split into words
+      const wordParts = beforeText.split(/([A-Za-z][A-Za-z']*)/g);
+      wordParts.forEach(part => {
+        if (/[A-Za-z][A-Za-z']*/.test(part)) {
+          renderParts.push({ text: part, isWord: true });
+        } else if (part) {
+          renderParts.push({ text: part });
+        }
+      });
+    }
+
+    // Add highlighted word (not split, but marked as highlight + word)
+    const highlightWord = text.slice(start, end);
+    const wordPartsInHighlight = highlightWord.split(/([A-Za-z][A-Za-z']*)/g);
+    wordPartsInHighlight.forEach(part => {
+      if (/[A-Za-z][A-Za-z']*/.test(part)) {
+        renderParts.push({ text: part, isHighlight: true, highlightType: type, isWord: true });
+      } else if (part) {
+        renderParts.push({ text: part, isHighlight: true, highlightType: type });
+      }
     });
+
+    currentIndex = end;
   });
 
-  Object.keys(placeholders).forEach(id => {
-    htmlText = htmlText.replace(id, placeholders[id]);
-  });
+  // Add remaining text after last match
+  if (currentIndex < text.length) {
+    const afterText = text.slice(currentIndex);
+    const wordParts = afterText.split(/([A-Za-z][A-Za-z']*)/g);
+    wordParts.forEach(part => {
+      if (/[A-Za-z][A-Za-z']*/.test(part)) {
+        renderParts.push({ text: part, isWord: true });
+      } else if (part) {
+        renderParts.push({ text: part });
+      }
+    });
+  }
 
-  return <div className="text-lg md:text-xl leading-relaxed font-medium text-neutral-300" dangerouslySetInnerHTML={{ __html: htmlText }} />;
+  return (
+    <div className="text-lg md:text-xl leading-relaxed font-medium text-neutral-300">
+      {renderParts.map((part, idx) => {
+        let className = '';
+        if (part.isHighlight) {
+          if (part.highlightType === 'stress') {
+            className = 'text-rose-400 font-semibold';
+          } else {
+            className = 'text-teal-400 font-semibold underline decoration-teal-500/30 underline-offset-4';
+          }
+        }
+
+        if (part.isWord) {
+          return (
+            <span
+              key={idx}
+              onClick={(e) => {
+                e.stopPropagation();
+                onWordClick(part.text);
+              }}
+              className={`cursor-pointer hover:text-teal-300 ${className}`}
+            >
+              {part.text}
+            </span>
+          );
+        }
+
+        return <span key={idx} className={className}>{part.text}</span>;
+      })}
+    </div>
+  );
 };
 
 // ==========================================
@@ -2212,6 +2527,13 @@ const NotesList: React.FC<{
     }
   };
 
+  const sequenceMap = useMemo(() => {
+    const sorted = [...notes].sort((a, b) => a.timestamp - b.timestamp);
+    const map = new Map<string, number>();
+    sorted.forEach((n, i) => map.set(n.id, i + 1));
+    return map;
+  }, [notes]);
+
   // Extract all unique tags sorted by most recent use
   const allTags = useMemo(() => {
     const tagMap = new Map<string, number>();
@@ -2339,9 +2661,14 @@ const NotesList: React.FC<{
                 className="bg-[#18181b] border border-white/10 rounded-2xl p-5 active:scale-[0.98] transition-transform group cursor-pointer hover:bg-white/[0.02]"
               >
                 <div className="flex justify-between items-start mb-3 gap-2">
-                  <span className="bg-teal-950/30 text-teal-500/80 text-[10px] font-mono px-2 py-1 rounded-full border border-teal-900/30">
-                    Daily Review
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-white/10 text-white text-[10px] font-mono px-2 py-1 rounded-full border border-white/10">
+                      #{sequenceMap.get(note.id) || 0}
+                    </span>
+                    <span className="bg-teal-950/30 text-teal-500/80 text-[10px] font-mono px-2 py-1 rounded-full border border-teal-900/30">
+                      Daily Review
+                    </span>
+                  </div>
                   <div className="flex items-center gap-1 ml-auto">
                     <span className="text-neutral-500 text-xs font-mono">{note.date}</span>
                     <button
@@ -2421,14 +2748,47 @@ const NotesDetail: React.FC<{
   onPlayVoice: (voice: VoiceItem) => void,
   isTouch?: boolean,
   sentenceVoiceAssociations: Record<string, string[]>,
-  onUpdateAssociations: (sentenceKey: string, voiceIds: string[]) => void
-}> = ({ note, onNavigateToShadow, onBack, onSave, onDelete, savedVoices, onPlayVoice, isTouch = false, sentenceVoiceAssociations, onUpdateAssociations }) => {
+  onUpdateAssociations: (sentenceKey: string, voiceIds: string[]) => void,
+  onAddWord: (word: string, translation?: string) => void
+}> = ({ note, onNavigateToShadow, onBack, onSave, onDelete, savedVoices, onPlayVoice, isTouch = false, sentenceVoiceAssociations, onUpdateAssociations, onAddWord }) => {
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(note.rawContent === "");
   const [rawText, setRawText] = useState(note.rawContent);
-  const [showToast, setShowToast] = useState(false);
+  const [showToast, setShowToast] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const detailContentRef = useRef<HTMLDivElement>(null);
+  const [wordModal, setWordModal] = useState<{ word: string; translation?: string; loading: boolean; structuredData?: any } | null>(null);
+  const [selection, setSelection] = useState<{ text: string, x: number, y: number } | null>(null);
+
+  // Selection listener
+  useEffect(() => {
+    const handleSelection = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        setSelection(null);
+        return;
+      }
+
+      const text = sel.toString().trim();
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+
+      // Ensure the selection is within our detail content
+      if (detailContentRef.current && !detailContentRef.current.contains(range.commonAncestorContainer)) {
+        setSelection(null);
+        return;
+      }
+
+      setSelection({
+        text,
+        x: rect.left + rect.width / 2,
+        y: rect.top
+      });
+    };
+
+    document.addEventListener('selectionchange', handleSelection);
+    return () => document.removeEventListener('selectionchange', handleSelection);
+  }, []);
 
   // Swipe back gesture
   const { handlers: swipeHandlers } = useSwipeToBack(() => {
@@ -2474,8 +2834,8 @@ const NotesDetail: React.FC<{
             text: 'Shadow Reader Note'
           });
           // Show success toast
-          setShowToast(true);
-          setTimeout(() => setShowToast(false), 2000);
+          setShowToast("Saved to Photos");
+          setTimeout(() => setShowToast(null), 2000);
           return;
         } catch (shareError: any) {
           // User cancelled - do nothing
@@ -2494,8 +2854,8 @@ const NotesDetail: React.FC<{
       link.click();
 
       // Show success toast
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 2000);
+      setShowToast("Saved to Photos");
+      setTimeout(() => setShowToast(null), 2000);
     } catch (error) {
       console.error('Export failed:', error);
     }
@@ -2590,6 +2950,14 @@ const NotesDetail: React.FC<{
     return voiceIds.map(id => savedVoices.find(v => v.id === id)).filter(Boolean) as VoiceItem[];
   };
 
+  const globallyUsedVoiceIds = useMemo(() => {
+    const set = new Set<string>();
+    Object.values(sentenceVoiceAssociations).forEach(arr => {
+      arr.forEach(id => set.add(id));
+    });
+    return Array.from(set);
+  }, [sentenceVoiceAssociations]);
+
   // Associate a voice with a sentence
   const associateVoice = (sentenceKey: string, voiceId: string) => {
     const current = sentenceVoiceAssociations[sentenceKey] || [];
@@ -2606,6 +2974,11 @@ const NotesDetail: React.FC<{
 
   const toggleAccordion = (id: string) => {
     setActiveAccordion(activeAccordion === id ? null : id);
+  };
+
+  const handleShowToast = (msg: string) => {
+    setShowToast(msg);
+    setTimeout(() => setShowToast(null), 2000);
   };
 
   const handleBack = () => {
@@ -2662,6 +3035,86 @@ const NotesDetail: React.FC<{
       setOpenVoiceDropdown(null);
       setOpenPlayDropdown(null);
     }
+  };
+
+  const handleWordClick = async (word: string) => {
+    // 1. Check Cache first
+    const cacheKey = `tr-${word.toLowerCase()}`;
+    const cached = getStorageItem<any>(STORAGE_KEYS.TRANSLATION_CACHE, {})[cacheKey];
+    if (cached) {
+      setWordModal({ 
+        word, 
+        translation: cached.translation, 
+        loading: false,
+        structuredData: cached.structuredData
+      });
+      return;
+    }
+
+    setWordModal({ word, translation: undefined, loading: true });
+    try {
+      const data = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: word, targetLang: 'zh' })
+      }).then(r => r.json());
+      
+      if (data && data.translatedText) {
+        let structuredData = null;
+        try {
+          structuredData = JSON.parse(data.translatedText);
+        } catch (e) {
+          console.log('Not a JSON translation');
+        }
+        
+        const translation = structuredData ? (structuredData.fullTranslation || "") : data.translatedText;
+        
+        // 2. Save to Cache
+        const currentCache = getStorageItem<any>(STORAGE_KEYS.TRANSLATION_CACHE, {});
+        currentCache[cacheKey] = { translation, structuredData };
+        // Limit cache size to 200 items to avoid LocalStorage overflow
+        const keys = Object.keys(currentCache);
+        if (keys.length > 200) {
+          delete currentCache[keys[0]];
+        }
+        setStorageItem(STORAGE_KEYS.TRANSLATION_CACHE, currentCache);
+
+        setWordModal({ 
+          word, 
+          translation, 
+          loading: false,
+          structuredData
+        });
+      } else {
+        setWordModal({ word, translation: undefined, loading: false });
+      }
+    } catch {
+      setWordModal({ word, translation: undefined, loading: false });
+    }
+  };
+
+  const WordText: React.FC<{ text: string; className?: string }> = ({ text, className }) => {
+    const parts = text.split(/([A-Za-z][A-Za-z']*)/g);
+    return (
+      <p className={className}>
+        {parts.map((part, idx) =>
+          /[A-Za-z][A-Za-z']*/.test(part) ? (
+            <span
+              key={idx}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleWordClick(part);
+              }}
+              className="cursor-pointer hover:text-teal-300"
+            >
+              {part}
+            </span>
+          ) : (
+            <span key={idx}>{part}</span>
+          )
+        )}
+      </p>
+    );
   };
 
   return (
@@ -2817,6 +3270,7 @@ const NotesDetail: React.FC<{
                                     sentenceKey={getSentenceKey('chat-correction', index, msg.correction)}
                                     associatedVoices={getAssociatedVoices(getSentenceKey('chat-correction', index, msg.correction))}
                                     savedVoices={savedVoices}
+                                    globallyUsedVoiceIds={globallyUsedVoiceIds}
                                     isOpen={openVoiceDropdown === getSentenceKey('chat-correction', index, msg.correction)}
                                     onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === getSentenceKey('chat-correction', index, msg.correction) ? null : getSentenceKey('chat-correction', index, msg.correction))}
                                     isPlayDropdownOpen={openPlayDropdown === getSentenceKey('chat-correction', index, msg.correction)}
@@ -2824,6 +3278,7 @@ const NotesDetail: React.FC<{
                                     onAssociate={(voiceId) => associateVoice(getSentenceKey('chat-correction', index, msg.correction), voiceId)}
                                     onRemove={(voiceId) => removeVoiceAssociation(getSentenceKey('chat-correction', index, msg.correction), voiceId)}
                                     onPlay={handlePlayVoiceInDetail}
+                                    onShowToast={handleShowToast}
                                     isTouch={isTouch}
                                     closeOtherDropdown={() => setOpenPlayDropdown(null)}
                                     closeMainDropdown={() => setOpenVoiceDropdown(null)}
@@ -2838,16 +3293,17 @@ const NotesDetail: React.FC<{
                                   </button>
                                 </div>
                               </div>
-                              <p className="text-teal-100/90 font-medium">{msg.correction}</p>
+                              <WordText className="text-teal-100/90 font-medium" text={msg.correction} />
                             </div>
                           ) : (
                             <div className="flex items-start justify-between gap-2">
-                              <p>{msg.text}</p>
+                              <WordText text={msg.text} />
                               <div className="flex items-center gap-1 shrink-0">
                                 <VoiceDropdown
                                   sentenceKey={getSentenceKey('chat', index, msg.text)}
                                   associatedVoices={getAssociatedVoices(getSentenceKey('chat', index, msg.text))}
                                   savedVoices={savedVoices}
+                                  globallyUsedVoiceIds={globallyUsedVoiceIds}
                                   isOpen={openVoiceDropdown === getSentenceKey('chat', index, msg.text)}
                                   onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === getSentenceKey('chat', index, msg.text) ? null : getSentenceKey('chat', index, msg.text))}
                                   isPlayDropdownOpen={openPlayDropdown === getSentenceKey('chat', index, msg.text)}
@@ -2855,6 +3311,7 @@ const NotesDetail: React.FC<{
                                   onAssociate={(voiceId) => associateVoice(getSentenceKey('chat', index, msg.text), voiceId)}
                                   onRemove={(voiceId) => removeVoiceAssociation(getSentenceKey('chat', index, msg.text), voiceId)}
                                   onPlay={handlePlayVoiceInDetail}
+                                  onShowToast={handleShowToast}
                                   isTouch={isTouch}
                                   closeOtherDropdown={() => setOpenPlayDropdown(null)}
                                   closeMainDropdown={() => setOpenVoiceDropdown(null)}
@@ -2901,7 +3358,7 @@ const NotesDetail: React.FC<{
                       <div className="flex items-start gap-3 flex-1">
                         <span className="bg-teal-950/30 text-teal-500/80 text-[10px] font-mono px-1.5 py-0.5 rounded uppercase border border-teal-900/30 shrink-0">After</span>
                         <div className="w-full">
-                          <p className="text-sm text-neutral-200 font-medium">{item.improved}</p>
+                          <WordText className="text-sm text-neutral-200 font-medium" text={item.improved} />
                           <p className="text-xs text-neutral-500 mt-1">{item.nuance}</p>
                         </div>
                       </div>
@@ -2910,6 +3367,7 @@ const NotesDetail: React.FC<{
                           sentenceKey={getSentenceKey('upgrade', idx, item.improved)}
                           associatedVoices={getAssociatedVoices(getSentenceKey('upgrade', idx, item.improved))}
                           savedVoices={savedVoices}
+                          globallyUsedVoiceIds={globallyUsedVoiceIds}
                           isOpen={openVoiceDropdown === getSentenceKey('upgrade', idx, item.improved)}
                           onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === getSentenceKey('upgrade', idx, item.improved) ? null : getSentenceKey('upgrade', idx, item.improved))}
                           isPlayDropdownOpen={openPlayDropdown === getSentenceKey('upgrade', idx, item.improved)}
@@ -2917,6 +3375,7 @@ const NotesDetail: React.FC<{
                           onAssociate={(voiceId) => associateVoice(getSentenceKey('upgrade', idx, item.improved), voiceId)}
                           onRemove={(voiceId) => removeVoiceAssociation(getSentenceKey('upgrade', idx, item.improved), voiceId)}
                           onPlay={handlePlayVoiceInDetail}
+                          onShowToast={handleShowToast}
                           isTouch={isTouch}
                           closeOtherDropdown={() => setOpenPlayDropdown(null)}
                           closeMainDropdown={() => setOpenVoiceDropdown(null)}
@@ -2974,14 +3433,15 @@ const NotesDetail: React.FC<{
                             <div className="space-y-2">
                               {item.examples.map((ex: string, i: number) => (
                                 <div key={i} className="flex justify-between items-center gap-2">
-                                  <p className="text-sm text-neutral-300 font-mono pl-3 border-l-2 border-teal-900/50 italic">
-                                    "{ex}"
-                                  </p>
+                                  <div className="text-sm text-neutral-300 font-mono pl-3 border-l-2 border-teal-900/50 italic">
+                                    <WordText text={`"${ex}"`} />
+                                  </div>
                                   <div className="flex items-center gap-1 shrink-0">
                                     <VoiceDropdown
                                       sentenceKey={getSentenceKey(`pattern-${item.id}`, i, ex)}
                                       associatedVoices={getAssociatedVoices(getSentenceKey(`pattern-${item.id}`, i, ex))}
                                       savedVoices={savedVoices}
+                                    globallyUsedVoiceIds={globallyUsedVoiceIds}
                                       isOpen={openVoiceDropdown === getSentenceKey(`pattern-${item.id}`, i, ex)}
                                       onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === getSentenceKey(`pattern-${item.id}`, i, ex) ? null : getSentenceKey(`pattern-${item.id}`, i, ex))}
                                       isPlayDropdownOpen={openPlayDropdown === getSentenceKey(`pattern-${item.id}`, i, ex)}
@@ -2989,6 +3449,7 @@ const NotesDetail: React.FC<{
                                       onAssociate={(voiceId) => associateVoice(getSentenceKey(`pattern-${item.id}`, i, ex), voiceId)}
                                       onRemove={(voiceId) => removeVoiceAssociation(getSentenceKey(`pattern-${item.id}`, i, ex), voiceId)}
                                       onPlay={handlePlayVoiceInDetail}
+                                      onShowToast={handleShowToast}
                                       isTouch={isTouch}
                                       closeOtherDropdown={() => setOpenPlayDropdown(null)}
                                       closeMainDropdown={() => setOpenVoiceDropdown(null)}
@@ -3033,7 +3494,12 @@ const NotesDetail: React.FC<{
                     </div>
 
                     <div className="relative z-10 space-y-6">
-                      <HighlightedText text={item.text} stress={item.stress} linking={item.linking} />
+                      <HighlightedTextWithClick
+                        text={item.text}
+                        stress={item.stress}
+                        linking={item.linking}
+                        onWordClick={handleWordClick}
+                      />
 
                       <div className="flex gap-4 text-[10px] text-neutral-500 font-mono uppercase pt-2 border-t border-white/10">
                         <div className="flex items-center gap-1.5">
@@ -3049,6 +3515,7 @@ const NotesDetail: React.FC<{
                           sentenceKey={getSentenceKey('shadowing', idx, item.text)}
                           associatedVoices={getAssociatedVoices(getSentenceKey('shadowing', idx, item.text))}
                           savedVoices={savedVoices}
+                          globallyUsedVoiceIds={globallyUsedVoiceIds}
                           isOpen={openVoiceDropdown === getSentenceKey('shadowing', idx, item.text)}
                           onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === getSentenceKey('shadowing', idx, item.text) ? null : getSentenceKey('shadowing', idx, item.text))}
                           isPlayDropdownOpen={openPlayDropdown === getSentenceKey('shadowing', idx, item.text)}
@@ -3056,6 +3523,7 @@ const NotesDetail: React.FC<{
                           onAssociate={(voiceId) => associateVoice(getSentenceKey('shadowing', idx, item.text), voiceId)}
                           onRemove={(voiceId) => removeVoiceAssociation(getSentenceKey('shadowing', idx, item.text), voiceId)}
                           onPlay={handlePlayVoiceInDetail}
+                          onShowToast={handleShowToast}
                           isTouch={isTouch}
                           closeOtherDropdown={() => setOpenPlayDropdown(null)}
                           closeMainDropdown={() => setOpenVoiceDropdown(null)}
@@ -3108,6 +3576,7 @@ const NotesDetail: React.FC<{
                                 sentenceKey={getSentenceKey('scenario', i, s.text)}
                                 associatedVoices={getAssociatedVoices(getSentenceKey('scenario', i, s.text))}
                                 savedVoices={savedVoices}
+                                globallyUsedVoiceIds={globallyUsedVoiceIds}
                                 isOpen={openVoiceDropdown === getSentenceKey('scenario', i, s.text)}
                                 onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === getSentenceKey('scenario', i, s.text) ? null : getSentenceKey('scenario', i, s.text))}
                                 isPlayDropdownOpen={openPlayDropdown === getSentenceKey('scenario', i, s.text)}
@@ -3115,6 +3584,7 @@ const NotesDetail: React.FC<{
                                 onAssociate={(voiceId) => associateVoice(getSentenceKey('scenario', i, s.text), voiceId)}
                                 onRemove={(voiceId) => removeVoiceAssociation(getSentenceKey('scenario', i, s.text), voiceId)}
                                 onPlay={handlePlayVoiceInDetail}
+                                onShowToast={handleShowToast}
                                 isTouch={isTouch}
                                 closeOtherDropdown={() => setOpenPlayDropdown(null)}
                                 closeMainDropdown={() => setOpenVoiceDropdown(null)}
@@ -3130,7 +3600,7 @@ const NotesDetail: React.FC<{
                               </button>
                             </div>
                           </div>
-                          <p>{s.text}</p>
+                          <WordText text={s.text} />
                         </div>
                       </div>
                     ))}
@@ -3306,14 +3776,118 @@ const NotesDetail: React.FC<{
       {/* Toast notification */}
       {showToast && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: -50 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 20 }}
-          className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-teal-500 text-black px-4 py-2 rounded-full font-medium text-sm shadow-lg z-50"
+          exit={{ opacity: 0, y: -50 }}
+          className="fixed top-10 left-1/2 -translate-x-1/2 bg-teal-500 text-black px-5 py-2.5 rounded-full font-bold text-sm shadow-xl z-[100] whitespace-nowrap"
         >
-          Saved to Photos
+          {showToast}
         </motion.div>
       )}
+      {wordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setWordModal(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#18181b] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {/* Top Right Icons */}
+            <div className="absolute top-4 right-4 flex items-center gap-3">
+              <button
+                onClick={() => {
+                  onAddWord(wordModal.word, wordModal.translation);
+                  setWordModal(null);
+                  setShowToast('已收藏到 Words');
+                  setTimeout(() => setShowToast(null), 1500);
+                }}
+                className="p-1.5 rounded-full hover:bg-white/5 text-teal-400 transition-colors"
+                title="收藏单词"
+              >
+                <Star size={20} />
+              </button>
+              <button
+                onClick={() => setWordModal(null)}
+                className="p-1.5 rounded-full hover:bg-white/5 text-neutral-400 hover:text-white transition-colors"
+                title="关闭"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="pr-0"> {/* Remove global padding to maximize width */}
+              <div className="max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+                {wordModal.loading ? (
+                  <div className="flex items-center gap-2 py-4">
+                    <Loader2 size={18} className="animate-spin text-teal-500" />
+                    <span className="text-neutral-400 text-sm">正在获取翻译...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-4 py-1">
+                    {/* User style (Word/Phrase) */}
+                    {wordModal.structuredData?.type === 'word' ? (
+                      <div className="space-y-4 text-sm sm:text-base leading-relaxed">
+                        <p className="text-neutral-200 pr-20"> {/* Only padding for the first paragraph to avoid icons */}
+                          “<span className="text-teal-400 font-bold">{wordModal.word}</span>” {wordModal.structuredData.meaningDesc || wordModal.translation}
+                        </p>
+                        {(wordModal.structuredData.partOfSpeech || wordModal.structuredData.phonetic) && (
+                          <div className="space-y-2 pt-3 border-t border-white/5">
+                            {wordModal.structuredData.partOfSpeech && (
+                              <div className="flex gap-3">
+                                <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">词性 ：</span>
+                                <span className="text-neutral-300">{wordModal.structuredData.partOfSpeech}</span>
+                              </div>
+                            )}
+                            {wordModal.structuredData.phonetic && (
+                              <div className="flex gap-3 items-start">
+                                <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">音标 ：</span>
+                                <span className="text-neutral-300 font-mono break-all leading-tight">
+                                  {wordModal.structuredData.phonetic}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Sentence/Simple Style */
+                      <div className="text-neutral-200 text-sm leading-relaxed whitespace-pre-wrap">
+                        {wordModal.structuredData?.fullTranslation || wordModal.translation || '无翻译'}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Translate Button for Selections */}
+      <AnimatePresence>
+        {selection && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            style={{
+              position: 'fixed',
+              left: selection.x,
+              top: selection.y - 40,
+              transform: 'translateX(-50%)',
+              zIndex: 100,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleWordClick(selection.text);
+              setSelection(null);
+              // Clear selection visually
+              window.getSelection()?.removeAllRanges();
+            }}
+          >
+            <button className="bg-teal-500 text-black px-3 py-1.5 rounded-full text-xs font-bold shadow-xl flex items-center gap-1.5 hover:bg-teal-400 transition-colors">
+              <Languages size={14} />
+              <span>翻译词组</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       </div>
     </motion.div>
   );
@@ -3327,6 +3901,7 @@ interface VoiceDropdownProps {
   sentenceKey: string;
   associatedVoices: VoiceItem[];
   savedVoices: VoiceItem[];
+  globallyUsedVoiceIds: string[];
   isOpen: boolean;
   onToggle: () => void;
   onTogglePlayDropdown: () => void;
@@ -3335,6 +3910,7 @@ interface VoiceDropdownProps {
   onRemove: (voiceId: string) => void;
   onPlay: (voice: VoiceItem) => void;
   onAddVoice?: () => void;
+  onShowToast?: (msg: string) => void;
   isTouch?: boolean;
   closeOtherDropdown?: () => void;
   closeMainDropdown?: () => void;
@@ -3346,6 +3922,7 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
   sentenceKey,
   associatedVoices,
   savedVoices,
+  globallyUsedVoiceIds,
   isOpen,
   onToggle,
   onTogglePlayDropdown,
@@ -3354,6 +3931,7 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
   onRemove,
   onPlay,
   onAddVoice,
+  onShowToast,
   isTouch = false,
   closeOtherDropdown,
   closeMainDropdown,
@@ -3379,6 +3957,14 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
       <button
         onClick={(e) => {
           e.stopPropagation();
+          
+          // Check if there are any available voices to associate
+          const availableVoices = savedVoices.filter(v => !globallyUsedVoiceIds.includes(v.id));
+          if (availableVoices.length === 0) {
+            if (onShowToast) onShowToast("当前没有音频可以关联");
+            return;
+          }
+
           if (closeOtherDropdown) closeOtherDropdown();
           onToggle();
         }}
@@ -3467,7 +4053,9 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
 
           {/* Show saved voices to associate */}
           {savedVoices.length > 0 ? (
-            savedVoices.filter(v => !hasAssociated || !associatedVoices.some(av => av.id === v.id)).map(voice => (
+            savedVoices
+              .filter(v => !globallyUsedVoiceIds.includes(v.id))
+              .map(voice => (
               <button
                 key={voice.id}
                 onClick={(e) => {
@@ -3490,6 +4078,134 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
 };
 
 // ==========================================
+// COMPONENT: VOICE CARD
+// ==========================================
+
+const VoiceCard: React.FC<{
+  voice: VoiceItem;
+  isTouch: boolean;
+  onDeleteClick: (id: string) => void;
+  onEditTimestamps?: (voice: VoiceItem) => void;
+  onPlayVoice: (voice: VoiceItem) => void;
+  onUpdateVoiceName?: (id: string, newName: string) => void;
+  editingId: string | null;
+  setEditingId: (id: string | null) => void;
+  editName: string;
+  setEditName: (name: string) => void;
+}> = ({ voice, isTouch, onDeleteClick, onEditTimestamps, onPlayVoice, onUpdateVoiceName, editingId, setEditingId, editName, setEditName }) => {
+  return (
+    <div
+      className="bg-[#18181b] border border-white/10 rounded-2xl p-5 transition-all group"
+    >
+      <div className="flex justify-between items-start mb-3">
+        <span className="bg-teal-950/30 text-teal-400/80 text-[10px] font-mono px-2 py-1 rounded-full border border-teal-900/30">
+          {new Date(voice.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-neutral-500 text-xs font-mono">{voice.date}</span>
+          {onEditTimestamps && (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onEditTimestamps(voice);
+              }}
+              className={`p-1 text-neutral-600 hover:text-teal-400 transition-opacity ${
+                isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+              }`}
+              title="Edit timestamps"
+            >
+              <Clock size={14} />
+            </button>
+          )}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDeleteClick(voice.id);
+            }}
+            className={`p-1 text-neutral-600 hover:text-red-400 transition-opacity ${
+              isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            }`}
+            title="Delete"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+
+      {editingId === voice.id ? (
+        <div className="flex items-center gap-2 mb-2" onClick={e => e.stopPropagation()}>
+          <input
+            type="text"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            className="flex-1 bg-neutral-800 text-white text-sm px-2 py-1 rounded border border-white/10 focus:border-teal-500/50 outline-none"
+            autoFocus
+          />
+          <button
+            onClick={() => {
+              onUpdateVoiceName?.(voice.id, editName);
+              setEditingId(null);
+            }}
+            className="p-1 text-teal-400 hover:text-teal-300"
+          >
+            <Check size={14} />
+          </button>
+          <button
+            onClick={() => setEditingId(null)}
+            className="p-1 text-neutral-500 hover:text-neutral-300"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between mt-4">
+          <h3
+            className="text-lg font-medium text-neutral-200 line-clamp-2 cursor-pointer hover:text-teal-400"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingId(voice.id);
+              setEditName(voice.title);
+            }}
+          >
+            {voice.title}
+          </h3>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => onPlayVoice(voice)}
+              className="p-2 bg-teal-600 rounded-full hover:bg-teal-500 transition-colors"
+            >
+              <Play size={16} fill="currentColor" className="text-white" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const link = document.createElement('a');
+                link.href = voice.audioUrl;
+                link.download = `${voice.title || 'voice-recording'}.mp3`;
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              className="text-neutral-500 hover:text-teal-400 transition-colors"
+              title="Download"
+            >
+              <Download size={18} fill="currentColor" />
+            </button>
+            <span className="text-xs text-neutral-500 font-mono">
+              {Math.floor(voice.duration / 60)}:{Math.floor(voice.duration % 60).toString().padStart(2, '0')}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==========================================
 // COMPONENT: VOICE COLLECTION
 // ==========================================
 
@@ -3501,11 +4217,25 @@ const VoiceCollection: React.FC<{
   onEditTimestamps?: (voice: VoiceItem) => void,
   onSync?: () => void,
   isSyncing?: boolean,
+  notes?: Note[],
+  associations?: Record<string, string[]>,
+  onOpenNote?: (note: Note) => void,
   isTouch?: boolean
-}> = ({ voices, onDeleteVoice, onPlayVoice, onUpdateVoiceName, onEditTimestamps, onSync, isSyncing = false, isTouch = false }) => {
+}> = ({ voices, onDeleteVoice, onPlayVoice, onUpdateVoiceName, onEditTimestamps, onSync, isSyncing = false, notes = [], associations = {}, onOpenNote, isTouch = false }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (noteId: string) => {
+    const newCollapsed = new Set(collapsedGroups);
+    if (newCollapsed.has(noteId)) {
+      newCollapsed.delete(noteId);
+    } else {
+      newCollapsed.add(noteId);
+    }
+    setCollapsedGroups(newCollapsed);
+  };
 
   const handleDeleteClick = (id: string) => {
     setShowDeleteConfirm(id);
@@ -3517,6 +4247,58 @@ const VoiceCollection: React.FC<{
       setShowDeleteConfirm(null);
     }
   };
+
+  const sequenceMap = useMemo(() => {
+    const sorted = [...notes].sort((a, b) => a.timestamp - b.timestamp);
+    const map = new Map<string, number>();
+    sorted.forEach((n, i) => map.set(n.id, i + 1));
+    return map;
+  }, [notes]);
+
+  const getAssociatedNoteIds = (voiceId: string): string[] => {
+    const set = new Set<string>();
+    Object.entries(associations).forEach(([sentenceKey, voiceIds]) => {
+      if (voiceIds.includes(voiceId)) {
+        let noteId = '';
+        const m = sentenceKey.match(/^(note-\d+)/);
+        if (m) {
+          noteId = m[1];
+        }
+        if (noteId) set.add(noteId);
+      }
+    });
+    return Array.from(set);
+  };
+
+  const groups = useMemo(() => {
+    const byNote = new Map<string, VoiceItem[]>();
+    const standalone: VoiceItem[] = [];
+
+    voices.forEach(v => {
+      const noteIds = getAssociatedNoteIds(v.id);
+      if (noteIds.length > 0) {
+        noteIds.forEach(noteId => {
+          if (!byNote.has(noteId)) byNote.set(noteId, []);
+          // Avoid duplicates if same voice is used in same note multiple times (though unlikely)
+          if (!byNote.get(noteId)!.some(existing => existing.id === v.id)) {
+            byNote.get(noteId)!.push(v);
+          }
+        });
+      } else {
+        standalone.push(v);
+      }
+    });
+
+    const entries = Array.from(byNote.entries()).map(([noteId, list]) => {
+      const n = notes.find(x => x.id === noteId);
+      const title = n?.title || 'Unknown Note';
+      const seq = sequenceMap.get(noteId) || 0;
+      return { noteId, title, seq, list: [...list].sort((a, b) => b.timestamp - a.timestamp) };
+    });
+
+    entries.sort((a, b) => b.seq - a.seq); // Sort by note sequence desc
+    return { noteGroups: entries, standalone: standalone.sort((a, b) => b.timestamp - a.timestamp) };
+  }, [voices, notes, associations, sequenceMap]);
 
   return (
     <motion.div 
@@ -3542,138 +4324,100 @@ const VoiceCollection: React.FC<{
         )}
       </header>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         {voices.length === 0 ? (
           <div className="text-center py-20 text-neutral-600">
             <Library size={48} className="mx-auto mb-4 opacity-20" />
             <p>No saved voices yet.</p>
           </div>
         ) : (
-          voices.map(voice => {
-            return (
-              <div
-                key={voice.id}
-                className="bg-[#18181b] border border-white/10 rounded-2xl p-5 transition-all group"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <span className="bg-teal-950/30 text-teal-400/80 text-[10px] font-mono px-2 py-1 rounded-full border border-teal-900/30">
-                    {new Date(voice.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-neutral-500 text-xs font-mono">{voice.date}</span>
-                    {onEditTimestamps && (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onEditTimestamps(voice);
-                        }}
-                        className={`p-1 text-neutral-600 hover:text-teal-400 transition-opacity ${
-                          isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                        }`}
-                        title="Edit timestamps"
-                      >
-                        <Clock size={14} />
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleDeleteClick(voice.id);
-                      }}
-                      onTouchEnd={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleDeleteClick(voice.id);
-                      }}
-                      onContextMenu={(e) => {
-                        if (isTouch) {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleDeleteClick(voice.id);
-                        }
-                      }}
-                      className={`p-1 text-neutral-600 hover:text-red-400 transition-opacity ${
-                        isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      }`}
-                      title="Delete"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                {editingId === voice.id ? (
-                  <div className="flex items-center gap-2 mb-2" onClick={e => e.stopPropagation()}>
-                    <input
-                      type="text"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      className="flex-1 bg-neutral-800 text-white text-sm px-2 py-1 rounded border border-white/10 focus:border-teal-500/50 outline-none"
-                      autoFocus
-                    />
-                    <button
-                      onClick={() => {
-                        onUpdateVoiceName?.(voice.id, editName);
-                        setEditingId(null);
-                      }}
-                      className="p-1 text-teal-400 hover:text-teal-300"
-                    >
-                      <Check size={14} />
-                    </button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="p-1 text-neutral-500 hover:text-neutral-300"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between mt-4">
-                    <h3
-                      className="text-lg font-medium text-neutral-200 line-clamp-2 cursor-pointer hover:text-teal-400"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingId(voice.id);
-                        setEditName(voice.title);
-                      }}
-                    >
-                      {voice.title}
-                    </h3>
-
+          <>
+            {/* Note Groups */}
+            {groups.noteGroups.map(group => {
+              const isCollapsed = collapsedGroups.has(group.noteId);
+              return (
+                <div key={group.noteId} className="space-y-3">
+                  <div 
+                    className="flex items-center justify-between px-2 cursor-pointer group"
+                    onClick={() => toggleGroup(group.noteId)}
+                  >
                     <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => onPlayVoice(voice)}
-                        className="p-2 bg-teal-600 rounded-full hover:bg-teal-500 transition-colors"
-                      >
-                        <Play size={16} fill="currentColor" className="text-white" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const link = document.createElement('a');
-                          link.href = voice.audioUrl;
-                          link.download = `${voice.title || 'voice-recording'}.mp3`;
-                          link.target = '_blank';
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                        }}
-                        className="text-neutral-500 hover:text-teal-400 transition-colors"
-                        title="Download"
-                      >
-                        <Download size={18} fill="currentColor" />
-                      </button>
-                      <span className="text-xs text-neutral-500 font-mono">
-                        {Math.floor(voice.duration / 60)}:{Math.floor(voice.duration % 60).toString().padStart(2, '0')}
+                      <div className="flex flex-col">
+                        <div className="text-[10px] text-teal-500 font-mono">No.{group.seq}</div>
+                        <h2 className="text-sm font-semibold text-neutral-300 group-hover:text-white transition-colors">
+                          {group.title}
+                        </h2>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-neutral-600 bg-white/5 px-2 py-0.5 rounded-full">
+                        {group.list.length} voices
                       </span>
+                      <motion.div
+                        animate={{ rotate: isCollapsed ? 0 : 180 }}
+                        className="text-neutral-600"
+                      >
+                        <ChevronDown size={14} />
+                      </motion.div>
                     </div>
                   </div>
-                )}
+
+                  <AnimatePresence>
+                    {!isCollapsed && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden space-y-3"
+                      >
+                        {group.list.map(voice => (
+                          <VoiceCard
+                            key={voice.id}
+                            voice={voice}
+                            isTouch={isTouch}
+                            onDeleteClick={handleDeleteClick}
+                            onEditTimestamps={onEditTimestamps}
+                            onPlayVoice={onPlayVoice}
+                            onUpdateVoiceName={onUpdateVoiceName}
+                            editingId={editingId}
+                            setEditingId={setEditingId}
+                            editName={editName}
+                            setEditName={setEditName}
+                          />
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+
+            {/* Standalone Voices */}
+            {groups.standalone.length > 0 && (
+              <div className="space-y-3 pt-4 border-t border-white/5">
+                <div className="px-2">
+                  <h2 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider">
+                    Standalone Recordings
+                  </h2>
+                </div>
+                {groups.standalone.map(voice => (
+                  <VoiceCard
+                    key={voice.id}
+                    voice={voice}
+                    isTouch={isTouch}
+                    onDeleteClick={handleDeleteClick}
+                    onEditTimestamps={onEditTimestamps}
+                    onPlayVoice={onPlayVoice}
+                    onUpdateVoiceName={onUpdateVoiceName}
+                    editingId={editingId}
+                    setEditingId={setEditingId}
+                    editName={editName}
+                    setEditName={setEditName}
+                  />
+                ))}
               </div>
-            );
-          })
+            )}
+          </>
         )}
       </div>
 
@@ -3750,6 +4494,137 @@ const BottomNav: React.FC<{ activeTab: MainTab, onTabChange: (tab: MainTab) => v
         <Library size={22} strokeWidth={activeTab === 'voice' ? 2.5 : 2} />
         <span className="text-[10px] font-medium">Voices</span>
       </button>
+
+      <button
+        onClick={() => onTabChange('words')}
+        onDoubleClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'words' ? 'text-teal-400' : 'text-neutral-500 hover:text-neutral-300'}`}
+      >
+        <List size={22} strokeWidth={activeTab === 'words' ? 2.5 : 2} />
+        <span className="text-[10px] font-medium">Words</span>
+      </button>
+    </div>
+  );
+};
+
+// ==========================================
+// COMPONENT: WORDS PAGE
+// ==========================================
+
+const WordsPage: React.FC<{
+  words: Array<{ id: string; word: string; translation?: string; createdAt: number; noteId: string; noteTitle: string }>;
+  notes: Note[];
+  onDeleteWord: (id: string) => void;
+}> = ({ words, notes, onDeleteWord }) => {
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (noteId: string) => {
+    const newCollapsed = new Set(collapsedGroups);
+    if (newCollapsed.has(noteId)) {
+      newCollapsed.delete(noteId);
+    } else {
+      newCollapsed.add(noteId);
+    }
+    setCollapsedGroups(newCollapsed);
+  };
+
+  const sequenceMap = useMemo(() => {
+    const sorted = [...notes].sort((a, b) => a.timestamp - b.timestamp);
+    const map = new Map<string, number>();
+    sorted.forEach((n, i) => map.set(n.id, i + 1));
+    return map;
+  }, [notes]);
+
+  const groups = useMemo(() => {
+    const byNote = new Map<string, typeof words>();
+    words.forEach(w => {
+      if (!byNote.has(w.noteId)) byNote.set(w.noteId, []);
+      byNote.get(w.noteId)!.push(w);
+    });
+    const entries = Array.from(byNote.entries()).map(([noteId, list]) => {
+      const title = notes.find(n => n.id === noteId)?.title || '';
+      const seq = sequenceMap.get(noteId) || 0;
+      const sorted = [...list].sort((a, b) => b.createdAt - a.createdAt);
+      return { noteId, title, seq, list: sorted };
+    });
+    entries.sort((a, b) => a.seq - b.seq);
+    return entries;
+  }, [words, notes, sequenceMap]);
+
+  return (
+    <div className="min-h-screen bg-[#09090b] text-[#e4e4e7] p-4 pb-24">
+      <header className="mb-4 mt-4 px-2">
+        <h1 className="text-2xl font-bold text-white">Words</h1>
+        <p className="text-xs text-neutral-500 mt-1">Tap a word in notes to save</p>
+      </header>
+      {groups.length === 0 ? (
+        <div className="text-center py-20 text-neutral-600">No words yet</div>
+      ) : (
+        <div className="space-y-4">
+          {groups.map(group => {
+            const isCollapsed = collapsedGroups.has(group.noteId);
+            return (
+              <div key={group.noteId} className="bg-[#18181b] border border-white/10 rounded-2xl overflow-hidden transition-all">
+                <div 
+                  className="px-4 py-4 flex items-center justify-between cursor-pointer hover:bg-white/5 active:bg-white/10"
+                  onClick={() => toggleGroup(group.noteId)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col">
+                      <div className="text-xs text-teal-500 font-mono mb-0.5">Note No.{group.seq}</div>
+                      <div className="text-sm font-semibold text-white truncate max-w-[200px]">{group.title}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-[10px] text-neutral-500 bg-white/5 px-2 py-0.5 rounded-full">{group.list.length}</div>
+                    <motion.div
+                      animate={{ rotate: isCollapsed ? 0 : 180 }}
+                      transition={{ duration: 0.2 }}
+                      className="text-neutral-500"
+                    >
+                      <ChevronDown size={18} />
+                    </motion.div>
+                  </div>
+                </div>
+                
+                <AnimatePresence>
+                  {!isCollapsed && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="divide-y divide-white/10 border-t border-white/10">
+                        {group.list.map(w => (
+                          <div key={w.id} className="px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.02]">
+                            <div className="min-w-0 pr-4">
+                              <div className="text-sm text-white font-medium mb-1">{w.word}</div>
+                              {w.translation && (
+                                <div className="text-xs text-neutral-400 leading-relaxed">{w.translation}</div>
+                              )}
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteWord(w.id);
+                              }}
+                              className="p-2 rounded-full hover:bg-red-400/10 text-neutral-600 hover:text-red-400 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -4101,6 +4976,7 @@ const TimestampEditor: React.FC<{
 // ==========================================
 
 export default function App() {
+  type Word = { id: string; word: string; translation?: string; createdAt: number; noteId: string; noteTitle: string };
   const [activeTab, setActiveTab] = useState<MainTab>('notes');
   const [notesView, setNotesView] = useState<NotesView>('list');
   const [shadowText, setShadowText] = useState<string | undefined>(undefined);
@@ -4205,6 +5081,7 @@ export default function App() {
         fetchNotes();
         fetchVoices();
         fetchAssociations();
+        fetchWords();
         return;
       }
 
@@ -4214,6 +5091,7 @@ export default function App() {
         fetchNotes();
         fetchVoices();
         fetchAssociations();
+        fetchWords();
         return;
       }
 
@@ -4230,7 +5108,8 @@ export default function App() {
             notes: localNotes,
             voices: localVoices,
             associations: localAssociations,
-            settings: localSettings
+            settings: localSettings,
+            words: getStorageItem<any[]>(STORAGE_KEYS.WORDS, [])
           })
         });
 
@@ -4243,6 +5122,7 @@ export default function App() {
         fetchNotes();
         fetchVoices();
         fetchAssociations();
+        fetchWords();
       }
     };
 
@@ -4337,6 +5217,9 @@ export default function App() {
   const [editedTimestamps, setEditedTimestamps] = useState<Record<string, LyricSegment[]>>(() =>
     getStorageItem<Record<string, LyricSegment[]>>(STORAGE_KEYS.EDITED_TIMESTAMPS, {})
   );
+  const [words, setWords] = useState<Word[]>(() =>
+    getStorageItem<Word[]>(STORAGE_KEYS.WORDS, [])
+  );
 
   // Persistence: Save to DB when state changes
   useEffect(() => {
@@ -4346,6 +5229,56 @@ export default function App() {
       // For now, we keep it simple since handleUpdateNote already exists
     }
   }, [notes]);
+
+  const fetchWords = async () => {
+    try {
+      const data = await apiFetch('/api/words');
+      if (Array.isArray(data) && data.length >= 0) {
+        setWords(data);
+        setStorageItem(STORAGE_KEYS.WORDS, data);
+        await setIDBItem(STORAGE_KEYS.WORDS, data);
+      } else {
+        const localData = await getIDBItem<Word[]>(STORAGE_KEYS.WORDS, []);
+        if (localData.length > 0) setWords(localData);
+      }
+    } catch (e) {
+      const localData = await getIDBItem<Word[]>(STORAGE_KEYS.WORDS, []);
+      if (localData.length > 0) setWords(localData);
+    }
+  };
+
+  const handleAddWord = async (payload: { word: string; translation?: string; noteId: string; noteTitle: string }) => {
+    const item: Word = {
+      id: `word-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      word: payload.word,
+      translation: payload.translation,
+      createdAt: Date.now(),
+      noteId: payload.noteId,
+      noteTitle: payload.noteTitle
+    };
+    try {
+      const saved = await apiFetch('/api/words', { method: 'POST', body: JSON.stringify(item) });
+      const newWords = [saved, ...words];
+      setWords(newWords);
+      setStorageItem(STORAGE_KEYS.WORDS, newWords);
+      await setIDBItem(STORAGE_KEYS.WORDS, newWords);
+    } catch {
+      const newWords = [item, ...words];
+      setWords(newWords);
+      setStorageItem(STORAGE_KEYS.WORDS, newWords);
+      await setIDBItem(STORAGE_KEYS.WORDS, newWords);
+    }
+  };
+
+  const handleDeleteWord = async (id: string) => {
+    try {
+      await apiFetch(`/api/words/${id}`, { method: 'DELETE' });
+    } catch {}
+    const newWords = words.filter(w => w.id !== id);
+    setWords(newWords);
+    setStorageItem(STORAGE_KEYS.WORDS, newWords);
+    await setIDBItem(STORAGE_KEYS.WORDS, newWords);
+  };
 
   // Handlers
   const handleNavigateToShadow = (text: string) => {
@@ -4649,6 +5582,7 @@ Shadowing Practice
                 isTouch={isTouch}
                 sentenceVoiceAssociations={sentenceVoiceAssociations}
                 onUpdateAssociations={handleUpdateAssociations}
+                onAddWord={(word, translation) => handleAddWord({ word, translation, noteId: selectedNote.id, noteTitle: selectedNote.title })}
               />
             ) : null}
           </AnimatePresence>
@@ -4680,7 +5614,22 @@ Shadowing Practice
             onEditTimestamps={handleEditTimestamps}
             onSync={handleManualSync}
             isSyncing={isSyncing}
+            notes={notes}
+            associations={sentenceVoiceAssociations}
+            onOpenNote={(n) => {
+              setActiveTab('notes');
+              setSelectedNote(n);
+              setNotesView('detail');
+            }}
             isTouch={isTouch}
+          />
+        );
+      case 'words':
+        return (
+          <WordsPage
+            words={words}
+            notes={notes}
+            onDeleteWord={handleDeleteWord}
           />
         );
     }
@@ -4712,26 +5661,6 @@ Shadowing Practice
       {renderContent()}
       {renderTimestampEditor()}
       {!editingVoice && <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />}
-      
-      {/* Mobile-friendly API Status Indicator */}
-      <AnimatePresence>
-        {lastApiStatus && (
-          <div className="fixed bottom-20 left-4 right-4 z-[9999] pointer-events-none">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className={`px-4 py-2 rounded-lg text-xs font-medium shadow-xl border backdrop-blur-md ${
-                lastApiStatus.includes('Failed') || lastApiStatus.includes('Error')
-                  ? 'bg-red-500/90 text-white border-red-400/50'
-                  : 'bg-teal-500/90 text-neutral-900 border-teal-400/50'
-              }`}
-            >
-              {lastApiStatus}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

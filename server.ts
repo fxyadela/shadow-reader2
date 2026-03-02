@@ -72,7 +72,7 @@ app.use((req, res, next) => {
 
 // API Routes
 app.get("/", (req, res) => {
-  res.send("Shadow Reader Backend is running");
+  res.sendFile('dist/index.html', { root: '.' });
 });
 
 // Notes APIs
@@ -188,12 +188,13 @@ app.post("/api/settings", async (req: Request, res: Response) => {
 app.post("/api/migrate", async (req: Request, res: Response) => {
   try {
     const db = await getDB();
-    const { notes, voices, associations, settings } = req.body;
+    const { notes, voices, associations, settings, words } = req.body;
     
     if (notes) db.notes = notes;
     if (voices) db.voices = voices;
     if (associations) db.associations = associations;
     if (settings) db.settings = settings;
+    if (words) db.words = words;
     
     await saveDB(db);
     res.json({ success: true });
@@ -211,6 +212,41 @@ app.get("/api/associations", async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Failed to fetch associations:', error);
     res.status(500).json({ error: 'Failed to fetch associations' });
+  }
+});
+
+// Words APIs
+app.get("/api/words", async (req: Request, res: Response) => {
+  try {
+    const db = await getDB();
+    res.json(db.words || []);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch words' });
+  }
+});
+
+app.post("/api/words", async (req: Request, res: Response) => {
+  try {
+    const db = await getDB();
+    const item = req.body;
+    if (!db.words) db.words = [];
+    db.words.unshift(item);
+    await saveDB(db);
+    res.json(item);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to save word' });
+  }
+});
+
+app.delete("/api/words/:id", async (req: Request, res: Response) => {
+  try {
+    const db = await getDB();
+    if (!db.words) db.words = [];
+    db.words = db.words.filter((w: any) => w.id !== req.params.id);
+    await saveDB(db);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete word' });
   }
 });
 
@@ -296,9 +332,18 @@ app.post("/api/translate", async (req: Request, res: Response) => {
         messages: [
           {
             role: 'user',
-            content: `Translate the following text to ${targetLanguage}. Return ONLY the translation, nothing else.\n\n${text}`
+            content: `Translate "${text}" to ${targetLanguage}. 
+            Return JSON:
+            {
+              "type": "word" | "sentence",
+              "meaningDesc": "最常见的意思是...",
+              "partOfSpeech": "词性名称 (缩写)",
+              "phonetic": "英 /.../，美 /.../",
+              "fullTranslation": "natural translation for sentences"
+            }`
           }
         ],
+        response_format: { type: "json_object" },
         max_tokens: 1024
       })
     });
