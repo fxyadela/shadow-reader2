@@ -4699,9 +4699,9 @@ const WordsPage: React.FC<{
                               )}
                               {(w.translation || w.partOfSpeech) && (
                                 <div className="text-xs text-neutral-400 leading-relaxed">
+                                  {w.partOfSpeech && <span className="text-neutral-500">[{w.partOfSpeech}]</span>}
+                                  {w.partOfSpeech && w.translation && <span className="mr-1"> </span>}
                                   {w.translation}
-                                  {w.translation && w.partOfSpeech && <span className="text-neutral-500"> [{w.partOfSpeech}]</span>}
-                                  {!w.translation && w.partOfSpeech && <span className="text-neutral-500">[{w.partOfSpeech}]</span>}
                                 </div>
                               )}
                             </div>
