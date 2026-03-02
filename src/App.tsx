@@ -5510,17 +5510,41 @@ Shadowing Practice
       setStorageItem(STORAGE_KEYS.WORDS, finalWords);
       await setIDBItem(STORAGE_KEYS.WORDS, finalWords);
 
-      // 6. Push merged data back to server to ensure server is in sync
-      console.log('[Sync] Pushing merged data to server...');
-      await apiFetch('/api/migrate', {
-        method: 'POST',
-        body: JSON.stringify({
-          notes: finalNotes,
-          voices: finalVoices,
-          associations: finalAssoc,
-          words: finalWords
-        })
-      });
+      // 6. Push merged data back to server (save individually to avoid payload limit)
+      console.log('[Sync] Saving data to cloud...');
+      setLastApiStatus('Syncing to cloud...');
+
+      // Save notes one by one
+      for (const note of finalNotes) {
+        await apiFetch('/api/notes', {
+          method: 'POST',
+          body: JSON.stringify(note)
+        });
+      }
+
+      // Save voices one by one
+      for (const voice of finalVoices) {
+        await apiFetch('/api/voices', {
+          method: 'POST',
+          body: JSON.stringify(voice)
+        });
+      }
+
+      // Save associations
+      for (const [key, voiceIds] of Object.entries(finalAssoc)) {
+        await apiFetch('/api/associations', {
+          method: 'POST',
+          body: JSON.stringify({ sentenceKey: key, voiceIds })
+        });
+      }
+
+      // Save words one by one
+      for (const word of finalWords) {
+        await apiFetch('/api/words', {
+          method: 'POST',
+          body: JSON.stringify(word)
+        });
+      }
 
       setLastApiStatus('Sync successful');
       setTimeout(() => setLastApiStatus(null), 3000);
