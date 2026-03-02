@@ -2785,70 +2785,10 @@ const NotesDetail: React.FC<{
   const abortControllerRef = useRef<AbortController | null>(null);
   const [selection, setSelection] = useState<{ text: string, x: number, y: number } | null>(null);
 
-  // Selection listener - use selectionchange for both desktop and mobile
-  useEffect(() => {
-    let isUpdatingSelection = false;
-
-    const handleSelection = () => {
-      // Prevent recursive updates
-      if (isUpdatingSelection) return;
-      isUpdatingSelection = true;
-
-      try {
-        const sel = window.getSelection();
-
-        // Clear selection if collapsed or empty
-        if (!sel || sel.isCollapsed) {
-          setSelection(null);
-          return;
-        }
-
-        const text = sel.toString().trim();
-        // Require at least 2 characters for selection to trigger translation
-        if (!text || text.length < 2) {
-          setSelection(null);
-          return;
-        }
-
-        // Ensure the selection is within our detail content
-        if (!detailContentRef.current) {
-          setSelection(null);
-          return;
-        }
-
-        try {
-          const range = sel.getRangeAt(0);
-          if (!detailContentRef.current.contains(range.commonAncestorContainer)) {
-            setSelection(null);
-            return;
-          }
-
-          const rect = range.getBoundingClientRect();
-          // Ensure rect has valid dimensions
-          if (rect.width === 0 || rect.height === 0) {
-            setSelection(null);
-            return;
-          }
-
-          setSelection({
-            text,
-            x: rect.left + rect.width / 2,
-            y: rect.top
-          });
-        } catch (e) {
-          setSelection(null);
-        }
-      } finally {
-        isUpdatingSelection = false;
-      }
-    };
-
-    document.addEventListener('selectionchange', handleSelection);
-
-    return () => {
-      document.removeEventListener('selectionchange', handleSelection);
-    };
-  }, []);
+  // Selection detection disabled for now - to be re-enabled after confirming text selection works
+  // useEffect(() => {
+  //   // ... selection logic
+  // }, []);
 
   // Swipe back gesture
   const { handlers: swipeHandlers } = useSwipeToBack(() => {
@@ -3976,8 +3916,8 @@ const NotesDetail: React.FC<{
         </div>
       )}
 
-      {/* Floating Translate Button for Selections */}
-      <AnimatePresence>
+      {/* Floating Translate Button - disabled for testing */}
+      {/* <AnimatePresence>
         {selection && (
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
@@ -4004,7 +3944,7 @@ const NotesDetail: React.FC<{
             </button>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence> */}
       </div>
     </motion.div>
   );
