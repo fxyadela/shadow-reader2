@@ -37,9 +37,18 @@ export default async function handler(
         messages: [
           {
             role: 'user',
-            content: `Translate the following text to ${targetLanguage}. Return ONLY the translation, nothing else.\n\n${text}`
+            content: `Translate "${text}" to ${targetLanguage}.
+            Return JSON:
+            {
+              "type": "word" | "sentence",
+              "meaningDesc": "最常见的意思是...",
+              "partOfSpeech": "词性名称 (缩写)",
+              "phonetic": "英 /.../，美 /.../",
+              "fullTranslation": "natural translation for sentences"
+            }`
           }
         ],
+        response_format: { type: "json_object" },
         max_tokens: 1024
       })
     });
