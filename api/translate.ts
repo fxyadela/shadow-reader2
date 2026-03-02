@@ -27,7 +27,7 @@ export default async function handler(
     const targetLanguage = langMap[targetLang] || 'Chinese';
 
     const isSingleWord = /^[a-zA-Z]+$/.test(text);
-    const typeHint = isSingleWord ? '单词用t:w，短语或句子用t:s' : '句子用t:s';
+    const typeHint = isSingleWord ? '单词类型用t:w，短语或句子类型用t:s' : '句子类型用t:s';
 
     const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
       method: 'POST',
