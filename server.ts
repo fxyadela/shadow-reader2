@@ -7,7 +7,7 @@ dotenv.config();
 
 // Supabase configuration
 const supabaseUrl = process.env.SUPABASE_URL || 'https://rcasajpyjhwxyqvldrwk.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY || 'sb_publishable_GhnmWAROHVCZR7QMg8tSmw_zfI4Bqwf';
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjYXNhanB5amh3eHlxdmxkcndrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDcyOTAsImV4cCI6MjA4ODAyMzI5MH0.5FuCOELkv_i8Kyf3LH8ymqvhp5mVod21B63cgJNky-Q';
 const supabase = createClient(supabaseUrl, supabaseKey);
 const TABLE_NAME = 'app_data';
 
