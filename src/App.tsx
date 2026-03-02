@@ -4692,14 +4692,17 @@ const WordsPage: React.FC<{
                           <div key={w.id} className="px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.02]">
                             <div className="min-w-0 pr-4">
                               <div className="text-sm text-white font-medium mb-1">{w.word}</div>
-                              {(w.phonetic || w.partOfSpeech) && (
+                              {w.phonetic && (
                                 <div className="text-xs text-teal-400/80 mb-1">
-                                  {w.phonetic && <span className="mr-2">{w.phonetic}</span>}
-                                  {w.partOfSpeech && <span className="text-neutral-500">[{w.partOfSpeech}]</span>}
+                                  {w.phonetic}
                                 </div>
                               )}
-                              {w.translation && (
-                                <div className="text-xs text-neutral-400 leading-relaxed">{w.translation}</div>
+                              {(w.translation || w.partOfSpeech) && (
+                                <div className="text-xs text-neutral-400 leading-relaxed">
+                                  {w.translation}
+                                  {w.translation && w.partOfSpeech && <span className="text-neutral-500"> [{w.partOfSpeech}]</span>}
+                                  {!w.translation && w.partOfSpeech && <span className="text-neutral-500">[{w.partOfSpeech}]</span>}
+                                </div>
                               )}
                             </div>
                             <button
