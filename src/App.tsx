@@ -2765,7 +2765,7 @@ const NotesDetail: React.FC<{
   const [showToast, setShowToast] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const detailContentRef = useRef<HTMLDivElement>(null);
-  const [wordModal, setWordModal] = useState<{ word: string; translation?: string; loading: boolean; structuredData?: any } | null>(null);
+  const [wordModal, setWordModal] = useState<{ word: string; noteId?: string; translation?: string; loading: boolean; structuredData?: any } | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [selection, setSelection] = useState<{ text: string, x: number, y: number } | null>(null);
 
@@ -3069,16 +3069,17 @@ const NotesDetail: React.FC<{
     const cacheKey = `tr-${word.toLowerCase()}`;
     const cached = getStorageItem<any>(STORAGE_KEYS.TRANSLATION_CACHE, {})[cacheKey];
     if (cached) {
-      setWordModal({ 
-        word, 
-        translation: cached.translation, 
+      setWordModal({
+        word,
+        noteId: note.id,
+        translation: cached.translation,
         loading: false,
         structuredData: cached.structuredData
       });
       return;
     }
 
-    setWordModal({ word, translation: undefined, loading: true });
+    setWordModal({ word, noteId: note.id, translation: undefined, loading: true });
     // Create new AbortController for this request
     abortControllerRef.current = new AbortController();
     try {
@@ -3117,21 +3118,22 @@ const NotesDetail: React.FC<{
         }
         setStorageItem(STORAGE_KEYS.TRANSLATION_CACHE, currentCache);
 
-        setWordModal({ 
-          word, 
-          translation, 
+        setWordModal({
+          word,
+          noteId: note.id,
+          translation,
           loading: false,
           structuredData
         });
       } else {
-        setWordModal({ word, translation: undefined, loading: false });
+        setWordModal({ word, noteId: note.id, translation: undefined, loading: false });
       }
     } catch (err: any) {
       // Ignore abort errors - user cancelled the request
       if (err.name === 'AbortError') {
         return;
       }
-      setWordModal({ word, translation: undefined, loading: false });
+      setWordModal({ word, noteId: note.id, translation: undefined, loading: false });
     }
   };
 
@@ -5764,7 +5766,7 @@ Shadowing Practice
                 isTouch={isTouch}
                 sentenceVoiceAssociations={sentenceVoiceAssociations}
                 onUpdateAssociations={handleUpdateAssociations}
-                onAddWord={(word, translation) => handleAddWord({ word, translation, noteId: selectedNote.id, noteTitle: selectedNote.title })}
+                onAddWord={(word, translation, structuredData) => handleAddWord({ word, translation, structuredData, noteId: selectedNote.id, noteTitle: selectedNote.title })}
               />
             ) : null}
           </AnimatePresence>
