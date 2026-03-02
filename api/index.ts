@@ -234,10 +234,12 @@ export default async function handler(
         });
 
         if (!response.ok) {
+          console.log('[Translate] GLM API error:', response.status);
           return res.status(200).json({ translatedText: text });
         }
 
         const data = await response.json();
+        console.log('[Translate] GLM response:', JSON.stringify(data));
         const translatedText = data.choices?.[0]?.message?.content || text;
         return res.status(200).json({ translatedText });
       } catch {
