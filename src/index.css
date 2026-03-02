@@ -14,4 +14,15 @@ html, body {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+  .select-text {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+    touch-action: manipulation;
+  }
+
+  .select-text * {
+    -webkit-user-select: text;
+    user-select: text;
+  }
 }
