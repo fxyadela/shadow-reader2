@@ -303,16 +303,16 @@ const WordModalUI: React.FC<{
                         <span className="text-neutral-300">{wordModal.structuredData.partOfSpeech}</span>
                       </div>
                     )}
-                    {/* Word + Phonetic */}
-                    <p className="text-neutral-200 pr-20">
-                      "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.phonetic && <span className="text-neutral-400 font-mono text-xs ml-1">{wordModal.structuredData.phonetic}</span>}
-                    </p>
                     {/* Meaning */}
                     {(wordModal.structuredData.meaningDesc || wordModal.translation) && (
                       <div className="text-neutral-300">
                         {wordModal.structuredData.meaningDesc || wordModal.translation}
                       </div>
                     )}
+                    {/* Word + Phonetic */}
+                    <p className="text-neutral-200 pr-20">
+                      "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.phonetic && <span className="text-neutral-400 font-mono text-xs ml-1">{wordModal.structuredData.phonetic}</span>}
+                    </p>
                   </div>
                 ) : (
                   /* Sentence/Simple Style */
@@ -3892,16 +3892,16 @@ const NotesDetail: React.FC<{
                             <span className="text-neutral-300">{wordModal.structuredData.partOfSpeech}</span>
                           </div>
                         )}
-                        {/* Word + Phonetic */}
-                        <p className="text-neutral-200 pr-20">
-                          "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.phonetic && <span className="text-neutral-400 font-mono text-xs ml-1">{wordModal.structuredData.phonetic}</span>}
-                        </p>
                         {/* Meaning */}
                         {(wordModal.structuredData.meaningDesc || wordModal.translation) && (
                           <div className="text-neutral-300">
                             {wordModal.structuredData.meaningDesc || wordModal.translation}
                           </div>
                         )}
+                        {/* Word + Phonetic */}
+                        <p className="text-neutral-200 pr-20">
+                          "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.phonetic && <span className="text-neutral-400 font-mono text-xs ml-1">{wordModal.structuredData.phonetic}</span>}
+                        </p>
                       </div>
                     ) : (
                       /* Sentence/Simple Style */
