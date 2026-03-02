@@ -4083,7 +4083,7 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
               ));
             }
             if (savedVoices.length > 0) {
-              return <p className="text-xs text-neutral-500 px-2 py-1">其他音频已关联到此笔记</p>;
+              return <p className="text-xs text-neutral-500 px-2 py-1">无可关联音频</p>;
             }
             return <p className="text-xs text-neutral-500 px-2 py-1">请先录制音频</p>;
           })()}
