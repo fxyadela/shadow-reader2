@@ -257,6 +257,44 @@ export default async function handler(
       return res.status(200).json({ success: true });
     }
 
+    // Audio upload API (for Supabase Storage)
+    if (url.includes('/api/upload-audio') && method === 'POST') {
+      try {
+        const { audioData, voiceId, contentType } = req.body;
+
+        if (!audioData || !voiceId) {
+          return res.status(400).json({ error: 'Missing audioData or voiceId' });
+        }
+
+        // Convert base64 to buffer
+        const buffer = Buffer.from(audioData, 'base64');
+        const fileName = `${voiceId}.webm`;
+
+        // Upload to Supabase Storage
+        const { data, error } = await supabase.storage
+          .from('audio')
+          .upload(fileName, buffer, {
+            contentType: contentType || 'audio/webm',
+            upsert: true
+          });
+
+        if (error) {
+          console.error('Storage upload error:', error);
+          return res.status(500).json({ error: 'Failed to upload audio' });
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('audio')
+          .getPublicUrl(fileName);
+
+        return res.status(200).json({ url: urlData.publicUrl });
+      } catch (error) {
+        console.error('Audio upload error:', error);
+        return res.status(500).json({ error: 'Failed to upload audio' });
+      }
+    }
+
     return res.status(404).json({ error: 'Route not found' });
   } catch (error) {
     console.error('API Error:', error);

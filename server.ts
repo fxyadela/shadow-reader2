@@ -409,6 +409,44 @@ app.post("/api/translate", async (req: Request, res: Response) => {
 // Serve static files in production
 app.use(express.static('dist'));
 
+// Audio upload API (for Supabase Storage)
+app.post("/api/upload-audio", async (req: Request, res: Response) => {
+  try {
+    const { audioData, voiceId, contentType } = req.body;
+
+    if (!audioData || !voiceId) {
+      return res.status(400).json({ error: 'Missing audioData or voiceId' });
+    }
+
+    // Convert base64 to buffer
+    const buffer = Buffer.from(audioData, 'base64');
+    const fileName = `${voiceId}.webm`;
+
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('audio')
+      .upload(fileName, buffer, {
+        contentType: contentType || 'audio/webm',
+        upsert: true
+      });
+
+    if (error) {
+      console.error('Storage upload error:', error);
+      return res.status(500).json({ error: 'Failed to upload audio' });
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('audio')
+      .getPublicUrl(fileName);
+
+    res.json({ url: urlData.publicUrl });
+  } catch (error) {
+    console.error('Audio upload error:', error);
+    res.status(500).json({ error: 'Failed to upload audio' });
+  }
+});
+
 // SPA fallback - serve index.html for all non-API routes
 app.get('*', (req: Request, res: Response) => {
   if (!req.path.startsWith('/api')) {

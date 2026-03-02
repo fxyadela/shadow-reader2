@@ -5522,8 +5522,41 @@ Shadowing Practice
         });
       }
 
-      // Skip voices - they contain large audio data that exceeds payload limits
-      // Users can re-download voices from local storage on each device
+      // Save voices with audio uploaded to Supabase Storage
+      setLastApiStatus('Syncing voices with audio...');
+      for (const voice of finalVoices) {
+        let voiceToSave = { ...voice };
+
+        // If voice has audio data (base64), upload to Supabase Storage
+        if (voice.audioUrl && voice.audioUrl.startsWith('data:')) {
+          try {
+            // Convert data URL to base64
+            const base64Data = voice.audioUrl.split(',')[1];
+            const contentType = voice.audioUrl.match(/data:([^;]+)/)?.[1] || 'audio/webm';
+
+            // Upload to Supabase Storage
+            const result = await apiFetch('/api/upload-audio', {
+              method: 'POST',
+              body: JSON.stringify({
+                audioData: base64Data,
+                voiceId: voice.id,
+                contentType
+              })
+            });
+
+            // Replace local audio with storage URL
+            voiceToSave = { ...voice, audioUrl: result.url };
+          } catch (error) {
+            console.error('Failed to upload audio for voice:', voice.id, error);
+            // Continue with other voices even if one fails
+          }
+        }
+
+        await apiFetch('/api/voices', {
+          method: 'POST',
+          body: JSON.stringify(voiceToSave)
+        });
+      }
 
       // Save associations
       for (const [key, voiceIds] of Object.entries(finalAssoc)) {
@@ -5541,7 +5574,7 @@ Shadowing Practice
         });
       }
 
-      setLastApiStatus('Notes & words synced to cloud');
+      setLastApiStatus('All data synced to cloud');
       setTimeout(() => setLastApiStatus(null), 3000);
     } catch (error) {
       console.error('Manual sync failed:', error);
