@@ -4227,14 +4227,6 @@ const VoiceCollection: React.FC<{
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
-  // Collapse all groups by default
-  useEffect(() => {
-    if (groups.length > 0 && collapsedGroups.size === 0) {
-      const allGroupIds = new Set(groups.map(g => g.noteId));
-      setCollapsedGroups(allGroupIds);
-    }
-  }, [groups]);
-
   const toggleGroup = (noteId: string) => {
     const newCollapsed = new Set(collapsedGroups);
     if (newCollapsed.has(noteId)) {
@@ -4307,6 +4299,14 @@ const VoiceCollection: React.FC<{
     entries.sort((a, b) => b.seq - a.seq); // Sort by note sequence desc
     return { noteGroups: entries, standalone: standalone.sort((a, b) => b.timestamp - a.timestamp) };
   }, [voices, notes, associations, sequenceMap]);
+
+  // Collapse all groups by default
+  useEffect(() => {
+    if (groups.noteGroups.length > 0 && collapsedGroups.size === 0) {
+      const allGroupIds = new Set(groups.noteGroups.map(g => g.noteId));
+      setCollapsedGroups(allGroupIds);
+    }
+  }, [groups]);
 
   return (
     <motion.div 
@@ -4526,14 +4526,6 @@ const WordsPage: React.FC<{
 }> = ({ words, notes, onDeleteWord }) => {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
-  // Collapse all groups by default
-  useEffect(() => {
-    if (groups.length > 0 && collapsedGroups.size === 0) {
-      const allGroupIds = new Set(groups.map(g => g.noteId));
-      setCollapsedGroups(allGroupIds);
-    }
-  }, [groups]);
-
   const toggleGroup = (noteId: string) => {
     const newCollapsed = new Set(collapsedGroups);
     if (newCollapsed.has(noteId)) {
@@ -4566,6 +4558,14 @@ const WordsPage: React.FC<{
     entries.sort((a, b) => a.seq - b.seq);
     return entries;
   }, [words, notes, sequenceMap]);
+
+  // Collapse all groups by default
+  useEffect(() => {
+    if (groups.length > 0 && collapsedGroups.size === 0) {
+      const allGroupIds = new Set(groups.map(g => g.noteId));
+      setCollapsedGroups(allGroupIds);
+    }
+  }, [groups]);
 
   return (
     <div className="min-h-screen bg-[#09090b] text-[#e4e4e7] p-4 pb-24">
