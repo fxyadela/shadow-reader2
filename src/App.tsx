@@ -253,7 +253,7 @@ const WordTextGlobal: React.FC<{
 const WordModalUI: React.FC<{
   wordModal: any;
   setWordModal: (val: any) => void;
-  onAddWord: (word: string, translation?: string) => void;
+  onAddWord: (word: string, translation?: string, structuredData?: { phonetic?: string; partOfSpeech?: string }) => void;
   onShowToast: (msg: string) => void;
 }> = ({ wordModal, setWordModal, onAddWord, onShowToast }) => {
   if (!wordModal) return null;
@@ -266,7 +266,7 @@ const WordModalUI: React.FC<{
         <div className="absolute top-4 right-4 flex items-center gap-3">
           <button
             onClick={() => {
-              onAddWord(wordModal.word, wordModal.translation);
+              onAddWord(wordModal.word, wordModal.translation, wordModal.structuredData);
               setWordModal(null);
               onShowToast('已收藏到 Words');
             }}
@@ -2757,7 +2757,7 @@ const NotesDetail: React.FC<{
   isTouch?: boolean,
   sentenceVoiceAssociations: Record<string, string[]>,
   onUpdateAssociations: (sentenceKey: string, voiceIds: string[]) => void,
-  onAddWord: (word: string, translation?: string) => void
+  onAddWord: (word: string, translation?: string, structuredData?: { phonetic?: string; partOfSpeech?: string }) => void
 }> = ({ note, onNavigateToShadow, onBack, onSave, onDelete, savedVoices, onPlayVoice, isTouch = false, sentenceVoiceAssociations, onUpdateAssociations, onAddWord }) => {
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(note.rawContent === "");
@@ -3840,7 +3840,7 @@ const NotesDetail: React.FC<{
             <div className="absolute top-4 right-4 flex items-center gap-3">
               <button
                 onClick={() => {
-                  onAddWord(wordModal.word, wordModal.translation);
+                  onAddWord(wordModal.word, wordModal.translation, wordModal.structuredData);
                   setWordModal(null);
                   setShowToast('已收藏到 Words');
                   setTimeout(() => setShowToast(null), 1500);
@@ -4588,7 +4588,7 @@ const BottomNav: React.FC<{ activeTab: MainTab, onTabChange: (tab: MainTab) => v
 // ==========================================
 
 const WordsPage: React.FC<{
-  words: Array<{ id: string; word: string; translation?: string; createdAt: number; noteId: string; noteTitle: string }>;
+  words: Array<{ id: string; word: string; translation?: string; phonetic?: string; partOfSpeech?: string; createdAt: number; noteId: string; noteTitle: string }>;
   notes: Note[];
   onDeleteWord: (id: string) => void;
 }> = ({ words, notes, onDeleteWord }) => {
@@ -4684,6 +4684,12 @@ const WordsPage: React.FC<{
                           <div key={w.id} className="px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.02]">
                             <div className="min-w-0 pr-4">
                               <div className="text-sm text-white font-medium mb-1">{w.word}</div>
+                              {(w.phonetic || w.partOfSpeech) && (
+                                <div className="text-xs text-teal-400/80 mb-1">
+                                  {w.phonetic && <span className="mr-2">{w.phonetic}</span>}
+                                  {w.partOfSpeech && <span className="text-neutral-500">[{w.partOfSpeech}]</span>}
+                                </div>
+                              )}
                               {w.translation && (
                                 <div className="text-xs text-neutral-400 leading-relaxed">{w.translation}</div>
                               )}
@@ -5060,7 +5066,7 @@ const TimestampEditor: React.FC<{
 // ==========================================
 
 export default function App() {
-  type Word = { id: string; word: string; translation?: string; createdAt: number; noteId: string; noteTitle: string };
+  type Word = { id: string; word: string; translation?: string; phonetic?: string; partOfSpeech?: string; createdAt: number; noteId: string; noteTitle: string };
   const [activeTab, setActiveTab] = useState<MainTab>('notes');
   const [notesView, setNotesView] = useState<NotesView>('list');
   const [shadowText, setShadowText] = useState<string | undefined>(undefined);
@@ -5332,11 +5338,13 @@ export default function App() {
     }
   };
 
-  const handleAddWord = async (payload: { word: string; translation?: string; noteId: string; noteTitle: string }) => {
+  const handleAddWord = async (payload: { word: string; translation?: string; noteId: string; noteTitle: string; structuredData?: { phonetic?: string; partOfSpeech?: string } }) => {
     const item: Word = {
       id: `word-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       word: payload.word,
       translation: payload.translation,
+      phonetic: payload.structuredData?.phonetic,
+      partOfSpeech: payload.structuredData?.partOfSpeech,
       createdAt: Date.now(),
       noteId: payload.noteId,
       noteTitle: payload.noteTitle
