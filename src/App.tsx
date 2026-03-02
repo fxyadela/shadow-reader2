@@ -296,25 +296,24 @@ const WordModalUI: React.FC<{
                 {/* User style (Word/Phrase) */}
                 {wordModal.structuredData?.type === 'word' ? (
                   <div className="space-y-4 text-sm sm:text-base leading-relaxed">
+                    {/* Part of Speech - show first */}
+                    {wordModal.structuredData.partOfSpeech && (
+                      <div className="flex gap-3">
+                        <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">词性 ：</span>
+                        <span className="text-neutral-300">{wordModal.structuredData.partOfSpeech}</span>
+                      </div>
+                    )}
+                    {/* Word + Meaning */}
                     <p className="text-neutral-200 pr-20"> {/* Only padding for the first paragraph to avoid icons */}
-                      “<span className="text-teal-400 font-bold">{wordModal.word}</span>” {wordModal.structuredData.meaningDesc || wordModal.translation}
+                      "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.meaningDesc || wordModal.translation}
                     </p>
-                    {(wordModal.structuredData.partOfSpeech || wordModal.structuredData.phonetic) && (
-                      <div className="space-y-2 pt-3 border-t border-white/5">
-                        {wordModal.structuredData.partOfSpeech && (
-                          <div className="flex gap-3">
-                            <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">词性 ：</span>
-                            <span className="text-neutral-300">{wordModal.structuredData.partOfSpeech}</span>
-                          </div>
-                        )}
-                        {wordModal.structuredData.phonetic && (
-                          <div className="flex gap-3 items-start">
-                            <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">音标 ：</span>
-                            <span className="text-neutral-300 font-mono break-all leading-tight">
-                              {wordModal.structuredData.phonetic}
-                            </span>
-                          </div>
-                        )}
+                    {/* Phonetic */}
+                    {wordModal.structuredData.phonetic && (
+                      <div className="flex gap-3 items-start">
+                        <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">音标 ：</span>
+                        <span className="text-neutral-300 font-mono break-all leading-tight">
+                          {wordModal.structuredData.phonetic}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -3889,25 +3888,24 @@ const NotesDetail: React.FC<{
                     {/* User style (Word/Phrase) */}
                     {wordModal.structuredData?.type === 'word' ? (
                       <div className="space-y-4 text-sm sm:text-base leading-relaxed">
+                        {/* Part of Speech - show first */}
+                        {wordModal.structuredData.partOfSpeech && (
+                          <div className="flex gap-3">
+                            <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">词性 ：</span>
+                            <span className="text-neutral-300">{wordModal.structuredData.partOfSpeech}</span>
+                          </div>
+                        )}
+                        {/* Word + Meaning */}
                         <p className="text-neutral-200 pr-20"> {/* Only padding for the first paragraph to avoid icons */}
-                          “<span className="text-teal-400 font-bold">{wordModal.word}</span>” {wordModal.structuredData.meaningDesc || wordModal.translation}
+                          "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.meaningDesc || wordModal.translation}
                         </p>
-                        {(wordModal.structuredData.partOfSpeech || wordModal.structuredData.phonetic) && (
-                          <div className="space-y-2 pt-3 border-t border-white/5">
-                            {wordModal.structuredData.partOfSpeech && (
-                              <div className="flex gap-3">
-                                <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">词性 ：</span>
-                                <span className="text-neutral-300">{wordModal.structuredData.partOfSpeech}</span>
-                              </div>
-                            )}
-                            {wordModal.structuredData.phonetic && (
-                              <div className="flex gap-3 items-start">
-                                <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">音标 ：</span>
-                                <span className="text-neutral-300 font-mono break-all leading-tight">
-                                  {wordModal.structuredData.phonetic}
-                                </span>
-                              </div>
-                            )}
+                        {/* Phonetic */}
+                        {wordModal.structuredData.phonetic && (
+                          <div className="flex gap-3 items-start">
+                            <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">音标 ：</span>
+                            <span className="text-neutral-300 font-mono break-all leading-tight">
+                              {wordModal.structuredData.phonetic}
+                            </span>
                           </div>
                         )}
                       </div>
