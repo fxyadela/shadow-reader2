@@ -499,9 +499,14 @@ const useSwipeToBack = (onBack: () => void, enabled: boolean = true) => {
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!enabled) return;
+    // Only start swipe if touch starts at left edge (within 30px)
+    // This prevents interfering with text selection
+    const startX = e.touches[0].clientX;
+    if (startX > 30) return;
+
     swipeRef.current = {
-      startX: e.touches[0].clientX,
-      currentX: e.touches[0].clientX,
+      startX,
+      currentX: startX,
       startY: e.touches[0].clientY,
       isSwiping: true
     };
@@ -2784,39 +2789,62 @@ const NotesDetail: React.FC<{
   useEffect(() => {
     const handleSelection = () => {
       const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+      if (!sel || sel.isCollapsed) {
         setSelection(null);
         return;
       }
 
       const text = sel.toString().trim();
-      const range = sel.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-
-      // Ensure the selection is within our detail content
-      if (detailContentRef.current && !detailContentRef.current.contains(range.commonAncestorContainer)) {
+      // Require at least 2 characters for selection to trigger translation
+      if (!text || text.length < 2) {
         setSelection(null);
         return;
       }
 
-      setSelection({
-        text,
-        x: rect.left + rect.width / 2,
-        y: rect.top
-      });
+      // Ensure the selection is within our detail content
+      if (!detailContentRef.current) {
+        setSelection(null);
+        return;
+      }
+
+      try {
+        const range = sel.getRangeAt(0);
+        if (!detailContentRef.current.contains(range.commonAncestorContainer)) {
+          setSelection(null);
+          return;
+        }
+
+        const rect = range.getBoundingClientRect();
+        // Ensure rect has valid dimensions
+        if (rect.width === 0 || rect.height === 0) {
+          setSelection(null);
+          return;
+        }
+
+        setSelection({
+          text,
+          x: rect.left + rect.width / 2,
+          y: rect.top
+        });
+      } catch (e) {
+        setSelection(null);
+      }
     };
 
     document.addEventListener('selectionchange', handleSelection);
 
     // Handle touch selection on mobile
     const handleTouchEnd = () => {
-      // Small delay to let selection settle
+      // Longer delay for mobile to let selection settle
       setTimeout(() => {
         const sel = window.getSelection();
-        if (sel && !sel.isCollapsed && sel.toString().trim()) {
-          handleSelection();
+        if (sel && !sel.isCollapsed) {
+          const text = sel.toString().trim();
+          if (text && text.length >= 2) {
+            handleSelection();
+          }
         }
-      }, 100);
+      }, 300);
     };
 
     // Add touch listeners for mobile

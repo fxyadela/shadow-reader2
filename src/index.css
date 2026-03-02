@@ -18,7 +18,7 @@ html, body {
     -webkit-user-select: text;
     user-select: text;
     -webkit-touch-callout: default;
-    touch-action: manipulation;
+    touch-action: text-selection;
   }
 
   .select-text * {
