@@ -1,41 +1,84 @@
 import express, { Request, Response } from "express";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
-import fs from "fs/promises";
-import path from "path";
+import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
 
-const DB_FILE = path.resolve("data.json");
+// Supabase configuration
+const supabaseUrl = process.env.SUPABASE_URL || 'https://rcasajpyjhwxyqvldrwk.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || 'sb_publishable_GhnmWAROHVCZR7QMg8tSmw_zfI4Bqwf';
+const supabase = createClient(supabaseUrl, supabaseKey);
+const TABLE_NAME = 'app_data';
 
-// Simple JSON-based database
+console.log('[DB] Using Supabase database:', supabaseUrl);
+
+// Supabase-based database
 async function getDB() {
   try {
-    const data = await fs.readFile(DB_FILE, "utf-8");
-    if (!data.trim()) throw new Error("Empty DB file");
-    const db = JSON.parse(data);
-    // Ensure basic structure exists
+    const { data, error } = await supabase
+      .from(TABLE_NAME)
+      .select('*')
+      .limit(1)
+      .single();
+
+    if (error || !data) {
+      console.log('[DB] No existing data, creating initial record...');
+      const initialData = { notes: [], voices: [], associations: {}, settings: {}, words: [] };
+      await supabase.from(TABLE_NAME).insert([{ key: 'main', ...initialData }]);
+      return initialData;
+    }
+
     return {
-      notes: db.notes || [],
-      voices: db.voices || [],
-      associations: db.associations || {},
-      settings: db.settings || {},
-      ...db
+      notes: data.notes || [],
+      voices: data.voices || [],
+      associations: data.associations || {},
+      settings: data.settings || {},
+      words: data.words || []
     };
   } catch (error) {
-    console.log(`[DB] Initializing new database file at ${DB_FILE}`);
-    const initialData = { notes: [], voices: [], associations: {}, settings: {} };
-    await fs.writeFile(DB_FILE, JSON.stringify(initialData, null, 2));
-    return initialData;
+    console.error('[DB] Failed to get from Supabase:', error);
+    return { notes: [], voices: [], associations: {}, settings: {}, words: [] };
   }
 }
 
 async function saveDB(data: any) {
   try {
-    await fs.writeFile(DB_FILE, JSON.stringify(data, null, 2));
-    console.log(`[DB] Successfully saved to ${DB_FILE}`);
+    // Check if record exists
+    const { data: existing } = await supabase
+      .from(TABLE_NAME)
+      .select('id')
+      .limit(1)
+      .single();
+
+    if (existing) {
+      // Update
+      await supabase
+        .from(TABLE_NAME)
+        .update({
+          notes: data.notes,
+          voices: data.voices,
+          associations: data.associations,
+          settings: data.settings,
+          words: data.words,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existing.id);
+      console.log('[DB] Successfully updated Supabase');
+    } else {
+      // Insert
+      await supabase.from(TABLE_NAME).insert([{
+        key: 'main',
+        notes: data.notes || [],
+        voices: data.voices || [],
+        associations: data.associations || {},
+        settings: data.settings || {},
+        words: data.words || []
+      }]);
+      console.log('[DB] Successfully created new record in Supabase');
+    }
   } catch (error) {
-    console.error(`[DB] Failed to save to ${DB_FILE}:`, error);
+    console.error('[DB] Failed to save to Supabase:', error);
     throw error;
   }
 }

@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL || 'https://lxlfgazmiwmablbeonek.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY || 'sbp_e3b74891c3e0ec988ec538a098cedcfde7471041';
+const supabaseUrl = process.env.SUPABASE_URL || 'https://rcasajpyjhwxyqvldrwk.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || 'sb_publishable_GhnmWAROHVCZR7QMg8tSmw_zfI4Bqwf';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 const TABLE_NAME = 'app_data';
