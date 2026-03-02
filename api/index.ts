@@ -1,28 +1,95 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import fs from 'fs/promises';
-import path from 'path';
+import { createClient } from '@supabase/supabase-js';
 
-// Note: Vercel Serverless Functions have a read-only filesystem except for /tmp
-// For persistence on Vercel, you should use a database like Vercel KV or PostgreSQL.
-// This implementation uses /tmp/data.json as a temporary store, but it will NOT persist across function restarts.
-const DB_FILE = path.join('/tmp', 'data.json');
+const supabaseUrl = process.env.SUPABASE_URL || 'https://lxlfgazmiwmablbeonek.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || 'sbp_e3b74891c3e0ec988ec538a098cedcfde7471041';
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+const TABLE_NAME = 'app_data';
+
+// Initialize database table if not exists
+async function initDB() {
+  try {
+    // Try to get the record, if it doesn't exist, create it
+    const { data, error } = await supabase
+      .from(TABLE_NAME)
+      .select('*')
+      .limit(1);
+
+    if (error) {
+      console.log('Table may not exist, attempting to create...');
+      // Table will be created via Supabase dashboard or manually
+    }
+  } catch (e) {
+    console.error('DB init error:', e);
+  }
+}
+
+initDB();
 
 async function getDB() {
   try {
-    const data = await fs.readFile(DB_FILE, 'utf-8');
-    return JSON.parse(data);
+    const { data, error } = await supabase
+      .from(TABLE_NAME)
+      .select('*')
+      .limit(1)
+      .single();
+
+    if (error || !data) {
+      // Create initial record
+      const initialData = { notes: [], voices: [], associations: {}, settings: {}, words: [] };
+      await supabase.from(TABLE_NAME).insert([{ key: 'main', ...initialData }]);
+      return initialData;
+    }
+
+    return {
+      notes: data.notes || [],
+      voices: data.voices || [],
+      associations: data.associations || {},
+      settings: data.settings || {},
+      words: data.words || []
+    };
   } catch (error) {
-    const initialData = { notes: [], voices: [], associations: {}, settings: {} };
-    // In Vercel, we can't easily persist files. This is a fallback.
-    return initialData;
+    console.error('Failed to get DB:', error);
+    return { notes: [], voices: [], associations: {}, settings: {}, words: [] };
   }
 }
 
 async function saveDB(data: any) {
   try {
-    await fs.writeFile(DB_FILE, JSON.stringify(data, null, 2));
+    // Check if record exists
+    const { data: existing } = await supabase
+      .from(TABLE_NAME)
+      .select('id')
+      .limit(1)
+      .single();
+
+    if (existing) {
+      // Update
+      await supabase
+        .from(TABLE_NAME)
+        .update({
+          notes: data.notes,
+          voices: data.voices,
+          associations: data.associations,
+          settings: data.settings,
+          words: data.words,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existing.id);
+    } else {
+      // Insert
+      await supabase.from(TABLE_NAME).insert([{
+        key: 'main',
+        notes: data.notes || [],
+        voices: data.voices || [],
+        associations: data.associations || {},
+        settings: data.settings || {},
+        words: data.words || []
+      }]);
+    }
   } catch (error) {
-    console.error('Failed to save to /tmp/data.json:', error);
+    console.error('Failed to save DB:', error);
   }
 }
 
@@ -30,7 +97,7 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
-  const { method, query } = req;
+  const { method } = req;
   const url = req.url || '';
 
   // Set CORS headers
@@ -122,6 +189,7 @@ export default async function handler(
       }
     }
 
+    // Translation API
     if (url.includes('/api/translate') && method === 'POST') {
       try {
         const { text, targetLang } = req.body as any;
@@ -149,7 +217,7 @@ export default async function handler(
             messages: [
               {
                 role: 'user',
-                content: `Translate "${text}" to ${targetLanguage}. 
+                content: `Translate "${text}" to ${targetLanguage}.
                 Return JSON:
                 {
                   "type": "word" | "sentence",
