@@ -303,17 +303,14 @@ const WordModalUI: React.FC<{
                         <span className="text-neutral-300">{wordModal.structuredData.partOfSpeech}</span>
                       </div>
                     )}
-                    {/* Word + Meaning */}
-                    <p className="text-neutral-200 pr-20"> {/* Only padding for the first paragraph to avoid icons */}
-                      "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.meaningDesc || wordModal.translation}
+                    {/* Word + Phonetic */}
+                    <p className="text-neutral-200 pr-20">
+                      "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.phonetic && <span className="text-neutral-400 font-mono text-xs ml-1">{wordModal.structuredData.phonetic}</span>}
                     </p>
-                    {/* Phonetic */}
-                    {wordModal.structuredData.phonetic && (
-                      <div className="flex gap-3 items-start">
-                        <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">音标 ：</span>
-                        <span className="text-neutral-300 font-mono break-all leading-tight">
-                          {wordModal.structuredData.phonetic}
-                        </span>
+                    {/* Meaning */}
+                    {(wordModal.structuredData.meaningDesc || wordModal.translation) && (
+                      <div className="text-neutral-300">
+                        {wordModal.structuredData.meaningDesc || wordModal.translation}
                       </div>
                     )}
                   </div>
@@ -3895,17 +3892,14 @@ const NotesDetail: React.FC<{
                             <span className="text-neutral-300">{wordModal.structuredData.partOfSpeech}</span>
                           </div>
                         )}
-                        {/* Word + Meaning */}
-                        <p className="text-neutral-200 pr-20"> {/* Only padding for the first paragraph to avoid icons */}
-                          "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.meaningDesc || wordModal.translation}
+                        {/* Word + Phonetic */}
+                        <p className="text-neutral-200 pr-20">
+                          "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.phonetic && <span className="text-neutral-400 font-mono text-xs ml-1">{wordModal.structuredData.phonetic}</span>}
                         </p>
-                        {/* Phonetic */}
-                        {wordModal.structuredData.phonetic && (
-                          <div className="flex gap-3 items-start">
-                            <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">音标 ：</span>
-                            <span className="text-neutral-300 font-mono break-all leading-tight">
-                              {wordModal.structuredData.phonetic}
-                            </span>
+                        {/* Meaning */}
+                        {(wordModal.structuredData.meaningDesc || wordModal.translation) && (
+                          <div className="text-neutral-300">
+                            {wordModal.structuredData.meaningDesc || wordModal.translation}
                           </div>
                         )}
                       </div>
