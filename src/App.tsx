@@ -2766,6 +2766,7 @@ const NotesDetail: React.FC<{
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const detailContentRef = useRef<HTMLDivElement>(null);
   const [wordModal, setWordModal] = useState<{ word: string; translation?: string; loading: boolean; structuredData?: any } | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [selection, setSelection] = useState<{ text: string, x: number, y: number } | null>(null);
 
   // Selection listener
@@ -3060,11 +3061,14 @@ const NotesDetail: React.FC<{
     }
 
     setWordModal({ word, translation: undefined, loading: true });
+    // Create new AbortController for this request
+    abortControllerRef.current = new AbortController();
     try {
       const data = await fetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: word, targetLang: 'zh' })
+        body: JSON.stringify({ text: word, targetLang: 'zh' }),
+        signal: abortControllerRef.current.signal
       }).then(r => r.json());
 
       if (data && data.translatedText) {
@@ -3104,7 +3108,11 @@ const NotesDetail: React.FC<{
       } else {
         setWordModal({ word, translation: undefined, loading: false });
       }
-    } catch {
+    } catch (err: any) {
+      // Ignore abort errors - user cancelled the request
+      if (err.name === 'AbortError') {
+        return;
+      }
       setWordModal({ word, translation: undefined, loading: false });
     }
   };
@@ -3801,7 +3809,13 @@ const NotesDetail: React.FC<{
         </motion.div>
       )}
       {wordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setWordModal(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => {
+          // Abort the request if still loading
+          if (wordModal.loading && abortControllerRef.current) {
+            abortControllerRef.current.abort();
+          }
+          setWordModal(null);
+        }}>
           <div className="absolute inset-0 bg-black/60" />
           <div className="relative bg-[#18181b] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
             {/* Top Right Icons */}
@@ -3819,7 +3833,13 @@ const NotesDetail: React.FC<{
                 <Star size={20} />
               </button>
               <button
-                onClick={() => setWordModal(null)}
+                onClick={() => {
+                  // Abort the request if still loading
+                  if (wordModal.loading && abortControllerRef.current) {
+                    abortControllerRef.current.abort();
+                  }
+                  setWordModal(null);
+                }}
                 className="p-1.5 rounded-full hover:bg-white/5 text-neutral-400 hover:text-white transition-colors"
                 title="关闭"
               >
