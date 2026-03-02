@@ -3174,7 +3174,7 @@ const NotesDetail: React.FC<{
   const WordText: React.FC<{ text: string; className?: string }> = ({ text, className }) => {
     const parts = text.split(/([A-Za-z][A-Za-z']*)/g);
     return (
-      <p className={className}>
+      <p className={className} style={{ WebkitUserSelect: 'text', userSelect: 'text' }}>
         {parts.map((part, idx) =>
           /[A-Za-z][A-Za-z']*/.test(part) ? (
             <span
@@ -3183,12 +3183,15 @@ const NotesDetail: React.FC<{
                 e.stopPropagation();
                 handleWordClick(part);
               }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               className="cursor-pointer hover:text-teal-300"
+              style={{ WebkitUserSelect: 'text', userSelect: 'text' }}
             >
               {part}
             </span>
           ) : (
-            <span key={idx}>{part}</span>
+            <span key={idx} style={{ WebkitUserSelect: 'text', userSelect: 'text' }}>{part}</span>
           )
         )}
       </p>
@@ -3341,7 +3344,7 @@ const NotesDetail: React.FC<{
                           {msg.role === 'user_original' && (
                             <div className="mb-3 pb-3 border-b border-white/10 opacity-60">
                               <p className="font-mono text-xs text-neutral-500 mb-1 uppercase tracking-wider">Original</p>
-                              <p className="line-through decoration-neutral-600 decoration-1">{msg.text}</p>
+                              <p className="line-through decoration-neutral-600 decoration-1" style={{ WebkitUserSelect: 'text', userSelect: 'text' }}>{msg.text}</p>
                             </div>
                           )}
                           
