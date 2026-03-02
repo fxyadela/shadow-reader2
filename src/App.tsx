@@ -2785,74 +2785,68 @@ const NotesDetail: React.FC<{
   const abortControllerRef = useRef<AbortController | null>(null);
   const [selection, setSelection] = useState<{ text: string, x: number, y: number } | null>(null);
 
-  // Selection listener for both mouse and touch
+  // Selection listener - use selectionchange for both desktop and mobile
   useEffect(() => {
+    let isUpdatingSelection = false;
+
     const handleSelection = () => {
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed) {
-        setSelection(null);
-        return;
-      }
-
-      const text = sel.toString().trim();
-      // Require at least 2 characters for selection to trigger translation
-      if (!text || text.length < 2) {
-        setSelection(null);
-        return;
-      }
-
-      // Ensure the selection is within our detail content
-      if (!detailContentRef.current) {
-        setSelection(null);
-        return;
-      }
+      // Prevent recursive updates
+      if (isUpdatingSelection) return;
+      isUpdatingSelection = true;
 
       try {
-        const range = sel.getRangeAt(0);
-        if (!detailContentRef.current.contains(range.commonAncestorContainer)) {
+        const sel = window.getSelection();
+
+        // Clear selection if collapsed or empty
+        if (!sel || sel.isCollapsed) {
           setSelection(null);
           return;
         }
 
-        const rect = range.getBoundingClientRect();
-        // Ensure rect has valid dimensions
-        if (rect.width === 0 || rect.height === 0) {
+        const text = sel.toString().trim();
+        // Require at least 2 characters for selection to trigger translation
+        if (!text || text.length < 2) {
           setSelection(null);
           return;
         }
 
-        setSelection({
-          text,
-          x: rect.left + rect.width / 2,
-          y: rect.top
-        });
-      } catch (e) {
-        setSelection(null);
+        // Ensure the selection is within our detail content
+        if (!detailContentRef.current) {
+          setSelection(null);
+          return;
+        }
+
+        try {
+          const range = sel.getRangeAt(0);
+          if (!detailContentRef.current.contains(range.commonAncestorContainer)) {
+            setSelection(null);
+            return;
+          }
+
+          const rect = range.getBoundingClientRect();
+          // Ensure rect has valid dimensions
+          if (rect.width === 0 || rect.height === 0) {
+            setSelection(null);
+            return;
+          }
+
+          setSelection({
+            text,
+            x: rect.left + rect.width / 2,
+            y: rect.top
+          });
+        } catch (e) {
+          setSelection(null);
+        }
+      } finally {
+        isUpdatingSelection = false;
       }
     };
 
     document.addEventListener('selectionchange', handleSelection);
 
-    // Handle touch selection on mobile
-    const handleTouchEnd = () => {
-      // Longer delay for mobile to let selection settle
-      setTimeout(() => {
-        const sel = window.getSelection();
-        if (sel && !sel.isCollapsed) {
-          const text = sel.toString().trim();
-          if (text && text.length >= 2) {
-            handleSelection();
-          }
-        }
-      }, 300);
-    };
-
-    // Add touch listeners for mobile
-    document.addEventListener('touchend', handleTouchEnd, { passive: true });
-
     return () => {
       document.removeEventListener('selectionchange', handleSelection);
-      document.removeEventListener('touchend', handleTouchEnd);
     };
   }, []);
 
@@ -3268,7 +3262,15 @@ const NotesDetail: React.FC<{
         )}
       </AnimatePresence>
 
-      <div ref={detailContentRef} className="bg-[#09090b] select-text">
+      <div
+        ref={detailContentRef}
+        className="bg-[#09090b]"
+        style={{
+          WebkitUserSelect: 'text',
+          userSelect: 'text',
+          WebkitTouchCallout: 'default',
+        }}
+      >
         {isEditing ? (
         <motion.div
           initial={{ opacity: 0 }}
