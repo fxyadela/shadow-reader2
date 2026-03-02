@@ -3053,18 +3053,22 @@ const NotesDetail: React.FC<{
 
     setWordModal({ word, translation: undefined, loading: true });
     try {
+      console.log('[翻译] 开始翻译:', word);
       const data = await fetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: word, targetLang: 'zh' })
       }).then(r => r.json());
-      
+
+      console.log('[翻译] API返回:', data);
+
       if (data && data.translatedText) {
         let structuredData = null;
         try {
           structuredData = JSON.parse(data.translatedText);
+          console.log('[翻译] 解析JSON成功:', structuredData);
         } catch (e) {
-          console.log('Not a JSON translation');
+          console.log('[翻译] Not a JSON translation');
         }
         
         const translation = structuredData ? (structuredData.fullTranslation || "") : data.translatedText;
@@ -3820,6 +3824,8 @@ const NotesDetail: React.FC<{
                   </div>
                 ) : (
                   <div className="space-y-4 py-1">
+                    {/* Debug: show structuredData */}
+                    {console.log('[弹窗] wordModal:', wordModal) || null}
                     {/* User style (Word/Phrase) */}
                     {wordModal.structuredData?.type === 'word' ? (
                       <div className="space-y-4 text-sm sm:text-base leading-relaxed">
