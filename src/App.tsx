@@ -3975,14 +3975,8 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
       <button
         onClick={(e) => {
           e.stopPropagation();
-          
-          // Check if there are any available voices to associate
-          const availableVoices = savedVoices.filter(v => !globallyUsedVoiceIds.includes(v.id));
-          if (availableVoices.length === 0) {
-            if (onShowToast) onShowToast("当前没有音频可以关联");
-            return;
-          }
 
+          // Show dropdown anyway - it will show associated voices and/or available voices
           if (closeOtherDropdown) closeOtherDropdown();
           onToggle();
         }}
@@ -4071,25 +4065,28 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
           ) : null}
 
           {/* Show saved voices to associate */}
-          {savedVoices.length > 0 ? (
-            savedVoices
-              .filter(v => !globallyUsedVoiceIds.includes(v.id))
-              .map(voice => (
-              <button
-                key={voice.id}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAssociate(voice.id);
-                }}
-                className="w-full text-left px-2 py-1.5 text-sm text-neutral-400 hover:text-teal-400 hover:bg-white/5 rounded-lg flex items-center gap-2"
-              >
-                <Plus size={12} />
-                <span className="flex-1 truncate" style={{ maxWidth: '120px' }}>{voice.title}</span>
-              </button>
-            ))
-          ) : (
-            <p className="text-xs text-neutral-500 px-2 py-1">No saved voices</p>
-          )}
+          {(() => {
+            const availableVoices = savedVoices.filter(v => !globallyUsedVoiceIds.includes(v.id));
+            if (availableVoices.length > 0) {
+              return availableVoices.map(voice => (
+                <button
+                  key={voice.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAssociate(voice.id);
+                  }}
+                  className="w-full text-left px-2 py-1.5 text-sm text-neutral-400 hover:text-teal-400 hover:bg-white/5 rounded-lg flex items-center gap-2"
+                >
+                  <Plus size={12} />
+                  <span className="flex-1 truncate" style={{ maxWidth: '120px' }}>{voice.title}</span>
+                </button>
+              ));
+            }
+            if (savedVoices.length > 0) {
+              return <p className="text-xs text-neutral-500 px-2 py-1">其他音频已关联到此笔记</p>;
+            }
+            return <p className="text-xs text-neutral-500 px-2 py-1">请先录制音频</p>;
+          })()}
         </div>
       )}
     </div>
