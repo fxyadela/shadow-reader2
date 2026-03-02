@@ -298,7 +298,7 @@ const WordModalUI: React.FC<{
                 {wordModal.structuredData?.type === 'word' ? (
                   <div className="space-y-4 text-sm sm:text-base leading-relaxed">
                     {/* Word + Meaning */}
-                    <div className="text-neutral-300">
+                    <div className="text-neutral-300 pr-16">
                       "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.meaningDesc || wordModal.translation}
                     </div>
                     {/* Part of Speech */}
@@ -3899,7 +3899,7 @@ const NotesDetail: React.FC<{
                     {wordModal.structuredData?.type === 'word' ? (
                       <div className="space-y-4 text-sm sm:text-base leading-relaxed">
                         {/* Word + Meaning */}
-                        <div className="text-neutral-300">
+                        <div className="text-neutral-300 pr-16">
                           "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.meaningDesc || wordModal.translation}
                         </div>
                         {/* Part of Speech */}
