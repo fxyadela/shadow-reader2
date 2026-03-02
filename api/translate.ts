@@ -29,6 +29,11 @@ export default async function handler(
     const isSingleWord = /^[a-zA-Z]+$/.test(text);
     const typeHint = isSingleWord ? '单词类型用t:w，短语或句子类型用t:s' : '句子类型用t:s';
 
+    // Force Chinese output for all fields
+    const promptText = isSingleWord
+      ? `翻译单词"${text}"为中文。${typeHint}。注意：m是中文释义，p是中文词性，ph必须是"英 /.../，美 /.../"格式，f必须是中文翻译。JSON格式:{"t":"w"|"s","m":"中文释义","p":"中文词性","ph":"英 /.../，美 /.../","f":"中文翻译"}`
+      : `翻译句子"${text}"为中文。${typeHint}。JSON格式:{"t":"w"|"s","m":"中文释义","p":"中文词性","ph":"英 /.../，美 /.../","f":"中文翻译"}`;
+
     const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
       method: 'POST',
       headers: {
@@ -40,7 +45,7 @@ export default async function handler(
         messages: [
           {
             role: 'user',
-            content: `翻译"${text}"为${targetLanguage}。${typeHint}。JSON:{"t":"w"|"s","m":"释义","p":"词性","ph":"音标","f":"翻译"}`
+            content: promptText
           }
         ],
         response_format: { type: "json_object" },

@@ -134,7 +134,7 @@ const STORAGE_KEYS = {
   SENTENCE_VOICE_ASSOCIATIONS: 'shadow-reader-sentence-voice-associations',
   EDITED_TIMESTAMPS: 'shadow-reader-edited-timestamps',
   WORDS: 'shadow-reader-words',
-  TRANSLATION_CACHE: 'shadow-reader-translation-cache-v5'
+  TRANSLATION_CACHE: 'shadow-reader-translation-cache-v6'
 } as const;
 
 // Generic get/set for localStorage
