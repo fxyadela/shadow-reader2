@@ -183,13 +183,21 @@ const handleWordClickGlobal = async (
     if (data && data.translatedText) {
       let structuredData = null;
       try {
-        structuredData = JSON.parse(data.translatedText);
+        const parsed = JSON.parse(data.translatedText);
+        // Map short keys to full keys for compatibility
+        structuredData = {
+          type: parsed.t || parsed.type,
+          meaningDesc: parsed.m || parsed.meaningDesc,
+          partOfSpeech: parsed.p || parsed.partOfSpeech,
+          phonetic: parsed.ph || parsed.phonetic,
+          fullTranslation: parsed.f || parsed.fullTranslation
+        };
       } catch (e) {
         console.log('Not a JSON translation');
       }
-      
+
       const translation = structuredData ? (structuredData.fullTranslation || "") : data.translatedText;
-      
+
       // 2. Save to Cache
       const currentCache = getStorageItem<any>(STORAGE_KEYS.TRANSLATION_CACHE, {});
       currentCache[cacheKey] = { translation, structuredData };
@@ -3062,13 +3070,21 @@ const NotesDetail: React.FC<{
       if (data && data.translatedText) {
         let structuredData = null;
         try {
-          structuredData = JSON.parse(data.translatedText);
+          const parsed = JSON.parse(data.translatedText);
+          // Map short keys to full keys for compatibility
+          structuredData = {
+            type: parsed.t || parsed.type,
+            meaningDesc: parsed.m || parsed.meaningDesc,
+            partOfSpeech: parsed.p || parsed.partOfSpeech,
+            phonetic: parsed.ph || parsed.phonetic,
+            fullTranslation: parsed.f || parsed.fullTranslation
+          };
         } catch (e) {
           console.log('Not a JSON translation');
         }
-        
+
         const translation = structuredData ? (structuredData.fullTranslation || "") : data.translatedText;
-        
+
         // 2. Save to Cache
         const currentCache = getStorageItem<any>(STORAGE_KEYS.TRANSLATION_CACHE, {});
         currentCache[cacheKey] = { translation, structuredData };

@@ -37,19 +37,11 @@ export default async function handler(
         messages: [
           {
             role: 'user',
-            content: `Translate "${text}" to ${targetLanguage}.
-            Return JSON:
-            {
-              "type": "word" | "sentence",
-              "meaningDesc": "最常见的意思是...",
-              "partOfSpeech": "词性名称 (缩写)",
-              "phonetic": "英 /.../，美 /.../",
-              "fullTranslation": "natural translation for sentences"
-            }`
+            content: `翻译"${text}"为${targetLanguage}。JSON格式:{"t":"w"|"s","m":"释义","p":"词性","ph":"音标","f":"翻译"}`
           }
         ],
         response_format: { type: "json_object" },
-        max_tokens: 1024
+        max_tokens: 256
       })
     });
 
