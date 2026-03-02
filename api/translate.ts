@@ -26,6 +26,9 @@ export default async function handler(
 
     const targetLanguage = langMap[targetLang] || 'Chinese';
 
+    const isSingleWord = /^[a-zA-Z]+$/.test(text);
+    const typeHint = isSingleWord ? '单词用t:w，短语或句子用t:s' : '句子用t:s';
+
     const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
       method: 'POST',
       headers: {
@@ -37,7 +40,7 @@ export default async function handler(
         messages: [
           {
             role: 'user',
-            content: `翻译"${text}"为${targetLanguage}。JSON格式:{"t":"w"|"s","m":"释义","p":"词性","ph":"音标","f":"翻译"}`
+            content: `翻译"${text}"为${targetLanguage}。${typeHint}。JSON:{"t":"w"|"s","m":"释义","p":"词性","ph":"音标","f":"翻译"}`
           }
         ],
         response_format: { type: "json_object" },
