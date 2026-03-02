@@ -26,13 +26,16 @@ export default async function handler(
 
     const targetLanguage = langMap[targetLang] || 'Chinese';
 
-    const isSingleWord = /^[a-zA-Z]+$/.test(text);
-    const typeHint = isSingleWord ? '单词类型用t:w，短语或句子类型用t:s' : '句子类型用t:s';
-
-    // Force Chinese output for all fields
-    const promptText = isSingleWord
-      ? `翻译单词"${text}"为中文。${typeHint}。注意：m是中文释义，p是中文词性，ph必须是"英 /.../，美 /.../"格式，f必须是中文翻译。JSON格式:{"t":"w"|"s","m":"中文释义","p":"中文词性","ph":"英 /.../，美 /.../","f":"中文翻译"}`
-      : `翻译句子"${text}"为中文。${typeHint}。JSON格式:{"t":"w"|"s","m":"中文释义","p":"中文词性","ph":"英 /.../，美 /.../","f":"中文翻译"}`;
+    // Use same prompt format as server.ts for consistent results
+    const promptText = `Translate "${text}" to ${targetLanguage}.
+Return JSON:
+{
+  "type": "word" | "sentence",
+  "meaningDesc": "最常见的意思是...",
+  "partOfSpeech": "词性名称 (缩写)",
+  "phonetic": "英 /.../，美 /.../",
+  "fullTranslation": "natural translation for sentences"
+}`;
 
     const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
       method: 'POST',
