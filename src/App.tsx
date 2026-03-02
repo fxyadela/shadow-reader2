@@ -4059,7 +4059,8 @@ const VoiceDropdown: React.FC<VoiceDropdownProps> = ({
                       e.stopPropagation();
                       onRemove(voice.id);
                     }}
-                    className={`p-1 rounded-full text-neutral-500 hover:text-red-400 hover:bg-red-400/10 ${isTouch ? 'opacity-100' : 'sm:opacity-0 sm:group-hover:opacity-100'} transition-opacity`}
+                    className="p-1 rounded-full text-neutral-500 hover:text-red-400 hover:bg-red-400/10 opacity-100 transition-opacity"
+                    title="解除关联"
                   >
                     <X size={12} />
                   </button>
