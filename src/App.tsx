@@ -2769,7 +2769,7 @@ const NotesDetail: React.FC<{
   const abortControllerRef = useRef<AbortController | null>(null);
   const [selection, setSelection] = useState<{ text: string, x: number, y: number } | null>(null);
 
-  // Selection listener
+  // Selection listener for both mouse and touch
   useEffect(() => {
     const handleSelection = () => {
       const sel = window.getSelection();
@@ -2796,7 +2796,25 @@ const NotesDetail: React.FC<{
     };
 
     document.addEventListener('selectionchange', handleSelection);
-    return () => document.removeEventListener('selectionchange', handleSelection);
+
+    // Handle touch selection on mobile
+    const handleTouchEnd = () => {
+      // Small delay to let selection settle
+      setTimeout(() => {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.toString().trim()) {
+          handleSelection();
+        }
+      }, 100);
+    };
+
+    // Add touch listeners for mobile
+    document.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      document.removeEventListener('selectionchange', handleSelection);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
   }, []);
 
   // Swipe back gesture
@@ -3208,7 +3226,7 @@ const NotesDetail: React.FC<{
         )}
       </AnimatePresence>
 
-      <div ref={detailContentRef} className="bg-[#09090b]">
+      <div ref={detailContentRef} className="bg-[#09090b] select-text">
         {isEditing ? (
         <motion.div
           initial={{ opacity: 0 }}
