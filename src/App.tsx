@@ -4227,6 +4227,14 @@ const VoiceCollection: React.FC<{
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
+  // Collapse all groups by default
+  useEffect(() => {
+    if (groups.length > 0 && collapsedGroups.size === 0) {
+      const allGroupIds = new Set(groups.map(g => g.noteId));
+      setCollapsedGroups(allGroupIds);
+    }
+  }, [groups]);
+
   const toggleGroup = (noteId: string) => {
     const newCollapsed = new Set(collapsedGroups);
     if (newCollapsed.has(noteId)) {
@@ -4517,6 +4525,14 @@ const WordsPage: React.FC<{
   onDeleteWord: (id: string) => void;
 }> = ({ words, notes, onDeleteWord }) => {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  // Collapse all groups by default
+  useEffect(() => {
+    if (groups.length > 0 && collapsedGroups.size === 0) {
+      const allGroupIds = new Set(groups.map(g => g.noteId));
+      setCollapsedGroups(allGroupIds);
+    }
+  }, [groups]);
 
   const toggleGroup = (noteId: string) => {
     const newCollapsed = new Set(collapsedGroups);
