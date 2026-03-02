@@ -5512,7 +5512,7 @@ Shadowing Practice
 
       // 6. Push merged data back to server (save individually to avoid payload limit)
       console.log('[Sync] Saving data to cloud...');
-      setLastApiStatus('Syncing to cloud...');
+      setLastApiStatus('Syncing notes & words...');
 
       // Save notes one by one
       for (const note of finalNotes) {
@@ -5522,13 +5522,8 @@ Shadowing Practice
         });
       }
 
-      // Save voices one by one
-      for (const voice of finalVoices) {
-        await apiFetch('/api/voices', {
-          method: 'POST',
-          body: JSON.stringify(voice)
-        });
-      }
+      // Skip voices - they contain large audio data that exceeds payload limits
+      // Users can re-download voices from local storage on each device
 
       // Save associations
       for (const [key, voiceIds] of Object.entries(finalAssoc)) {
@@ -5546,7 +5541,7 @@ Shadowing Practice
         });
       }
 
-      setLastApiStatus('Sync successful');
+      setLastApiStatus('Notes & words synced to cloud');
       setTimeout(() => setLastApiStatus(null), 3000);
     } catch (error) {
       console.error('Manual sync failed:', error);
