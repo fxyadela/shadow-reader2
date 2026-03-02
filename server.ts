@@ -375,13 +375,14 @@ app.post("/api/translate", async (req: Request, res: Response) => {
         messages: [
           {
             role: 'user',
-            content: `Translate "${text}" to ${targetLanguage}. 
+            content: `Translate "${text}" to ${targetLanguage}.
             Return JSON:
             {
               "type": "word" | "sentence",
               "meaningDesc": "最常见的意思是...",
-              "partOfSpeech": "词性名称 (缩写)",
-              "phonetic": "英 /.../，美 /.../",
+              "partOfSpeech": "形容词 (adj.)；名词 (n.)",
+              "phonetic": "英 /ˈmɪlətri/，美 /ˈmɪləteri/",
+              "collocations": ["military service（兵役）", "military action（军事行动）"],
               "fullTranslation": "natural translation for sentences"
             }`
           }

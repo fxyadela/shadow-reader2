@@ -190,6 +190,7 @@ const handleWordClickGlobal = async (
           meaningDesc: parsed.m || parsed.meaningDesc,
           partOfSpeech: parsed.p || parsed.partOfSpeech,
           phonetic: parsed.ph || parsed.phonetic,
+          collocations: parsed.c || parsed.collocations,
           fullTranslation: parsed.f || parsed.fullTranslation
         };
       } catch (e) {
@@ -296,23 +297,36 @@ const WordModalUI: React.FC<{
                 {/* User style (Word/Phrase) */}
                 {wordModal.structuredData?.type === 'word' ? (
                   <div className="space-y-4 text-sm sm:text-base leading-relaxed">
-                    {/* Part of Speech - show first */}
+                    {/* Word + Meaning */}
+                    <div className="text-neutral-300">
+                      "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.meaningDesc || wordModal.translation}
+                    </div>
+                    {/* Part of Speech */}
                     {wordModal.structuredData.partOfSpeech && (
-                      <div className="flex gap-3">
-                        <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">词性 ：</span>
-                        <span className="text-neutral-300">{wordModal.structuredData.partOfSpeech}</span>
-                      </div>
-                    )}
-                    {/* Meaning */}
-                    {(wordModal.structuredData.meaningDesc || wordModal.translation) && (
                       <div className="text-neutral-300">
-                        {wordModal.structuredData.meaningDesc || wordModal.translation}
+                        <span className="text-neutral-500">词性：</span> {wordModal.structuredData.partOfSpeech}
                       </div>
                     )}
-                    {/* Word + Phonetic */}
-                    <p className="text-neutral-200 pr-20">
-                      "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.phonetic && <span className="text-neutral-400 font-mono text-xs ml-1">{wordModal.structuredData.phonetic}</span>}
-                    </p>
+                    {/* Phonetic */}
+                    {wordModal.structuredData.phonetic && (
+                      <div className="text-neutral-300 font-mono">
+                        <span className="text-neutral-500">音标：</span> {wordModal.structuredData.phonetic}
+                      </div>
+                    )}
+                    {/* Collocations */}
+                    {wordModal.structuredData.collocations && (
+                      <div className="text-neutral-300">
+                        <span className="text-neutral-500">常见搭配：</span>
+                        <div className="mt-1 ml-2 space-y-1">
+                          {Array.isArray(wordModal.structuredData.collocations)
+                            ? wordModal.structuredData.collocations.map((c: string, i: number) => (
+                                <div key={i} className="text-neutral-400">{c}</div>
+                              ))
+                            : wordModal.structuredData.collocations
+                          }
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   /* Sentence/Simple Style */
@@ -3097,6 +3111,7 @@ const NotesDetail: React.FC<{
             meaningDesc: parsed.m || parsed.meaningDesc,
             partOfSpeech: parsed.p || parsed.partOfSpeech,
             phonetic: parsed.ph || parsed.phonetic,
+            collocations: parsed.c || parsed.collocations,
             fullTranslation: parsed.f || parsed.fullTranslation
           };
         } catch (e) {
@@ -3880,28 +3895,39 @@ const NotesDetail: React.FC<{
                   </div>
                 ) : (
                   <div className="space-y-4 py-1">
-                    {/* Debug: show structuredData */}
-                    {console.log('[弹窗] wordModal:', wordModal) || null}
                     {/* User style (Word/Phrase) */}
                     {wordModal.structuredData?.type === 'word' ? (
                       <div className="space-y-4 text-sm sm:text-base leading-relaxed">
-                        {/* Part of Speech - show first */}
+                        {/* Word + Meaning */}
+                        <div className="text-neutral-300">
+                          "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.meaningDesc || wordModal.translation}
+                        </div>
+                        {/* Part of Speech */}
                         {wordModal.structuredData.partOfSpeech && (
-                          <div className="flex gap-3">
-                            <span className="text-neutral-500 font-medium min-w-[48px] shrink-0">词性 ：</span>
-                            <span className="text-neutral-300">{wordModal.structuredData.partOfSpeech}</span>
-                          </div>
-                        )}
-                        {/* Meaning */}
-                        {(wordModal.structuredData.meaningDesc || wordModal.translation) && (
                           <div className="text-neutral-300">
-                            {wordModal.structuredData.meaningDesc || wordModal.translation}
+                            <span className="text-neutral-500">词性：</span> {wordModal.structuredData.partOfSpeech}
                           </div>
                         )}
-                        {/* Word + Phonetic */}
-                        <p className="text-neutral-200 pr-20">
-                          "<span className="text-teal-400 font-bold">{wordModal.word}</span>" {wordModal.structuredData.phonetic && <span className="text-neutral-400 font-mono text-xs ml-1">{wordModal.structuredData.phonetic}</span>}
-                        </p>
+                        {/* Phonetic */}
+                        {wordModal.structuredData.phonetic && (
+                          <div className="text-neutral-300 font-mono">
+                            <span className="text-neutral-500">音标：</span> {wordModal.structuredData.phonetic}
+                          </div>
+                        )}
+                        {/* Collocations */}
+                        {wordModal.structuredData.collocations && (
+                          <div className="text-neutral-300">
+                            <span className="text-neutral-500">常见搭配：</span>
+                            <div className="mt-1 ml-2 space-y-1">
+                              {Array.isArray(wordModal.structuredData.collocations)
+                                ? wordModal.structuredData.collocations.map((c: string, i: number) => (
+                                    <div key={i} className="text-neutral-400">{c}</div>
+                                  ))
+                                : wordModal.structuredData.collocations
+                              }
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       /* Sentence/Simple Style */
