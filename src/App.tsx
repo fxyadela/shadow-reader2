@@ -5450,11 +5450,13 @@ Shadowing Practice
       const notesData = await apiFetch('/api/notes');
       const voicesData = await apiFetch('/api/voices');
       const assocData = await apiFetch('/api/associations');
+      const wordsData = await apiFetch('/api/words');
 
       // 2. Get local data for comparison (Prioritize IndexedDB)
       const localNotes = await getIDBItem<Note[]>(STORAGE_KEYS.NOTES, notes);
       const localVoices = await getIDBItem<VoiceItem[]>(STORAGE_KEYS.SAVED_VOICES, savedVoices);
       const localAssoc = await getIDBItem<Record<string, string[]>>(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, sentenceVoiceAssociations);
+      const localWords = await getIDBItem<Word[]>(STORAGE_KEYS.WORDS, words);
 
       // 3. Smart Merge Logic: Never let server empty data overwrite local non-empty data
       let finalNotes = [...localNotes];
@@ -5479,20 +5481,34 @@ Shadowing Practice
 
       const finalAssoc = { ...localAssoc, ...(assocData || {}) };
 
+      let finalWords = [...localWords];
+      if (wordsData && wordsData.length > 0) {
+        // Merge: Add server words that don't exist locally
+        wordsData.forEach((sw: Word) => {
+          if (!finalWords.some(lw => lw.id === sw.id)) {
+            finalWords.push(sw);
+          }
+        });
+      }
+
       // 4. Update Local State
       setNotes(finalNotes);
       setSavedVoices(finalVoices);
       setSentenceVoiceAssociations(finalAssoc);
+      setWords(finalWords);
 
       // 5. Update Local Persistence
       setStorageItem(STORAGE_KEYS.NOTES, finalNotes);
       await setIDBItem(STORAGE_KEYS.NOTES, finalNotes);
-      
+
       setStorageItem(STORAGE_KEYS.SAVED_VOICES, finalVoices);
       await setIDBItem(STORAGE_KEYS.SAVED_VOICES, finalVoices);
-      
+
       setStorageItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, finalAssoc);
       await setIDBItem(STORAGE_KEYS.SENTENCE_VOICE_ASSOCIATIONS, finalAssoc);
+
+      setStorageItem(STORAGE_KEYS.WORDS, finalWords);
+      await setIDBItem(STORAGE_KEYS.WORDS, finalWords);
 
       // 6. Push merged data back to server to ensure server is in sync
       console.log('[Sync] Pushing merged data to server...');
@@ -5501,7 +5517,8 @@ Shadowing Practice
         body: JSON.stringify({
           notes: finalNotes,
           voices: finalVoices,
-          associations: finalAssoc
+          associations: finalAssoc,
+          words: finalWords
         })
       });
 
