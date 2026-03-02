@@ -2748,6 +2748,7 @@ const NotesList: React.FC<{
 
 const NotesDetail: React.FC<{
   note: Note,
+  words: Word[],
   onNavigateToShadow: (text: string) => void,
   onBack: () => void,
   onSave: (updatedNote: Note) => void,
@@ -2758,7 +2759,7 @@ const NotesDetail: React.FC<{
   sentenceVoiceAssociations: Record<string, string[]>,
   onUpdateAssociations: (sentenceKey: string, voiceIds: string[]) => void,
   onAddWord: (word: string, translation?: string, structuredData?: { phonetic?: string; partOfSpeech?: string }) => void
-}> = ({ note, onNavigateToShadow, onBack, onSave, onDelete, savedVoices, onPlayVoice, isTouch = false, sentenceVoiceAssociations, onUpdateAssociations, onAddWord }) => {
+}> = ({ note, words, onNavigateToShadow, onBack, onSave, onDelete, savedVoices, onPlayVoice, isTouch = false, sentenceVoiceAssociations, onUpdateAssociations, onAddWord }) => {
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(note.rawContent === "");
   const [rawText, setRawText] = useState(note.rawContent);
@@ -3840,18 +3841,25 @@ const NotesDetail: React.FC<{
           <div className="relative bg-[#18181b] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
             {/* Top Right Icons */}
             <div className="absolute top-4 right-4 flex items-center gap-3">
-              <button
-                onClick={() => {
-                  onAddWord(wordModal.word, wordModal.translation, wordModal.structuredData);
-                  setWordModal(null);
-                  setShowToast('已收藏到 Words');
-                  setTimeout(() => setShowToast(null), 1500);
-                }}
-                className="p-1.5 rounded-full hover:bg-white/5 text-teal-400 transition-colors"
-                title="收藏单词"
-              >
-                <Star size={20} />
-              </button>
+              {(() => {
+                const isWordSaved = words.some(w => w.word.toLowerCase() === wordModal.word.toLowerCase() && w.noteId === wordModal.noteId);
+                return (
+                  <button
+                    onClick={() => {
+                      if (!isWordSaved) {
+                        onAddWord(wordModal.word, wordModal.translation, wordModal.structuredData);
+                        setShowToast('已收藏到 Words');
+                        setTimeout(() => setShowToast(null), 1500);
+                      }
+                      setWordModal(null);
+                    }}
+                    className={`p-1.5 rounded-full hover:bg-white/5 transition-colors ${isWordSaved ? 'text-amber-400' : 'text-teal-400'}`}
+                    title={isWordSaved ? '已收藏' : '收藏单词'}
+                  >
+                    <Star size={20} fill={isWordSaved ? 'currentColor' : 'none'} />
+                  </button>
+                );
+              })()}
               <button
                 onClick={() => {
                   // Abort the request if still loading
@@ -5754,6 +5762,7 @@ Shadowing Practice
               <NotesDetail
                 key={selectedNote.id}
                 note={selectedNote}
+                words={words}
                 onNavigateToShadow={handleNavigateToShadow}
                 onBack={() => {
                   setNotesView('list');
