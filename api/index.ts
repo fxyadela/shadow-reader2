@@ -241,7 +241,16 @@ export default async function handler(
         const data = await response.json();
         console.log('[Translate] GLM response:', JSON.stringify(data));
         const translatedText = data.choices?.[0]?.message?.content || text;
-        return res.status(200).json({ translatedText });
+
+        // Return debug info
+        return res.status(200).json({
+          translatedText,
+          debug: {
+            hasChoices: !!data.choices,
+            content: data.choices?.[0]?.message?.content,
+            fullResponse: data
+          }
+        });
       } catch {
         return res.status(200).json({ translatedText: req.body?.text || '' });
       }
