@@ -4219,11 +4219,12 @@ const VoiceCollection: React.FC<{
   onEditTimestamps?: (voice: VoiceItem) => void,
   onSync?: () => void,
   isSyncing?: boolean,
+  syncProgress?: { current: number; total: number } | null,
   notes?: Note[],
   associations?: Record<string, string[]>,
   onOpenNote?: (note: Note) => void,
   isTouch?: boolean
-}> = ({ voices, onDeleteVoice, onPlayVoice, onUpdateVoiceName, onEditTimestamps, onSync, isSyncing = false, notes = [], associations = {}, onOpenNote, isTouch = false }) => {
+}> = ({ voices, onDeleteVoice, onPlayVoice, onUpdateVoiceName, onEditTimestamps, onSync, isSyncing = false, syncProgress = null, notes = [], associations = {}, onOpenNote, isTouch = false }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
@@ -4331,6 +4332,19 @@ const VoiceCollection: React.FC<{
           >
             <RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''} />
           </button>
+        )}
+        {syncProgress && (
+          <div className="absolute top-16 right-4 bg-neutral-800 border border-teal-500/30 rounded-lg p-3 shadow-lg z-50 min-w-[200px]">
+            <div className="text-xs text-neutral-400 mb-2">
+              Syncing {syncProgress.current}/{syncProgress.total}
+            </div>
+            <div className="w-full h-2 bg-neutral-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-teal-500 transition-all duration-300"
+                style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
+              />
+            </div>
+          </div>
         )}
       </header>
 
@@ -5012,6 +5026,7 @@ export default function App() {
 
   const [isMigrating, setIsMigrating] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number } | null>(null);
   const [sentenceVoiceAssociations, setSentenceVoiceAssociations] = useState<Record<string, string[]>>({});
   const [lastApiStatus, setLastApiStatus] = useState<string | null>(null);
 
@@ -5512,10 +5527,20 @@ Shadowing Practice
 
       // 6. Push merged data back to server (save individually to avoid payload limit)
       console.log('[Sync] Saving data to cloud...');
-      setLastApiStatus('Syncing notes & words...');
+
+      // Calculate total items for progress
+      const totalItems =
+        finalNotes.length +
+        finalVoices.length +
+        Object.keys(finalAssoc).length +
+        finalWords.length;
+      let currentItem = 0;
 
       // Save notes one by one
       for (const note of finalNotes) {
+        currentItem++;
+        setSyncProgress({ current: currentItem, total: totalItems });
+        setLastApiStatus(`Syncing notes (${currentItem}/${totalItems})...`);
         await apiFetch('/api/notes', {
           method: 'POST',
           body: JSON.stringify(note)
@@ -5523,8 +5548,10 @@ Shadowing Practice
       }
 
       // Save voices with audio uploaded to Supabase Storage
-      setLastApiStatus('Syncing voices with audio...');
       for (const voice of finalVoices) {
+        currentItem++;
+        setSyncProgress({ current: currentItem, total: totalItems });
+        setLastApiStatus(`Syncing voices (${currentItem}/${totalItems})...`);
         let voiceToSave = { ...voice };
 
         // If voice has audio data (base64), upload to Supabase Storage
@@ -5560,6 +5587,9 @@ Shadowing Practice
 
       // Save associations
       for (const [key, voiceIds] of Object.entries(finalAssoc)) {
+        currentItem++;
+        setSyncProgress({ current: currentItem, total: totalItems });
+        setLastApiStatus(`Syncing associations (${currentItem}/${totalItems})...`);
         await apiFetch('/api/associations', {
           method: 'POST',
           body: JSON.stringify({ sentenceKey: key, voiceIds })
@@ -5568,16 +5598,21 @@ Shadowing Practice
 
       // Save words one by one
       for (const word of finalWords) {
+        currentItem++;
+        setSyncProgress({ current: currentItem, total: totalItems });
+        setLastApiStatus(`Syncing words (${currentItem}/${totalItems})...`);
         await apiFetch('/api/words', {
           method: 'POST',
           body: JSON.stringify(word)
         });
       }
 
+      setSyncProgress(null);
       setLastApiStatus('All data synced to cloud');
       setTimeout(() => setLastApiStatus(null), 3000);
     } catch (error) {
       console.error('Manual sync failed:', error);
+      setSyncProgress(null);
       setLastApiStatus('Sync failed');
       setTimeout(() => setLastApiStatus(null), 3000);
     } finally {
@@ -5701,6 +5736,7 @@ Shadowing Practice
             onEditTimestamps={handleEditTimestamps}
             onSync={handleManualSync}
             isSyncing={isSyncing}
+            syncProgress={syncProgress}
             notes={notes}
             associations={sentenceVoiceAssociations}
             onOpenNote={(n) => {
