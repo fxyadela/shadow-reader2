@@ -134,7 +134,8 @@ const STORAGE_KEYS = {
   SENTENCE_VOICE_ASSOCIATIONS: 'shadow-reader-sentence-voice-associations',
   EDITED_TIMESTAMPS: 'shadow-reader-edited-timestamps',
   WORDS: 'shadow-reader-words',
-  TRANSLATION_CACHE: 'shadow-reader-translation-cache-v6'
+  TRANSLATION_CACHE: 'shadow-reader-translation-cache-v6',
+  CUSTOM_VOICES: 'shadow-reader-custom-voices'
 } as const;
 
 // Generic get/set for localStorage
@@ -1097,7 +1098,8 @@ const ShadowReader: React.FC<{
 
   // Basic
   const [model, setModel] = useState(savedSettings.model || 'speech-2.6-hd');
-  const [voices, setVoices] = useState(VOICES);
+  const customVoices = getStorageItem<typeof VOICES>(STORAGE_KEYS.CUSTOM_VOICES, []);
+  const [voices, setVoices] = useState([...VOICES, ...customVoices]);
   const [selectedVoice, setSelectedVoice] = useState(savedSettings.selectedVoice || 'moss_audio_e13b8230-0ff2-11f1-a2d4-8609e701aa01');
   const [speed, setSpeed] = useState(savedSettings.speed ?? 1.0);
   const [vol, setVol] = useState(savedSettings.vol ?? 3.0);
@@ -1347,7 +1349,11 @@ const ShadowReader: React.FC<{
   const handleAddVoice = () => {
     if (newVoiceName && newVoiceId) {
       const newVoice = { id: newVoiceId, name: newVoiceName, accent: 'Custom' };
-      setVoices([...voices, newVoice]);
+      const updatedVoices = [...voices, newVoice];
+      setVoices(updatedVoices);
+      // Save custom voices (excluding default VOICES) to localStorage
+      const customVoices = updatedVoices.filter(v => !VOICES.find(defaultV => defaultV.id === v.id));
+      setStorageItem(STORAGE_KEYS.CUSTOM_VOICES, customVoices);
       setSelectedVoice(newVoiceId);
       setIsAddingVoice(false);
       setNewVoiceName('');
