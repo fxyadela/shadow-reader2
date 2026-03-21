@@ -2750,13 +2750,12 @@ const NotesList: React.FC<{
   };
 
   const sequenceMap = useMemo(() => {
-    // Filter notes by category so each category has independent sequence numbering
-    const categoryNotes = notes.filter(n => (n.category || 'personal') === category);
-    const sorted = [...categoryNotes].sort((a, b) => a.timestamp - b.timestamp);
+    // Map notes to sequence numbers
+    const sorted = [...notes].sort((a, b) => a.timestamp - b.timestamp);
     const map = new Map<string, number>();
     sorted.forEach((n, i) => map.set(n.id, i + 1));
     return map;
-  }, [notes, category]);
+  }, [notes]);
 
   // Extract all unique tags sorted by most recent use (filtered by category)
   const allTags = useMemo(() => {
@@ -4528,13 +4527,12 @@ const VoiceCollection: React.FC<{
   };
 
   const sequenceMap = useMemo(() => {
-    // Filter notes by category so each category has independent sequence numbering
-    const categoryNotes = notes.filter(n => (n.category || 'personal') === category);
-    const sorted = [...categoryNotes].sort((a, b) => a.timestamp - b.timestamp);
+    // Map notes to sequence numbers
+    const sorted = [...notes].sort((a, b) => a.timestamp - b.timestamp);
     const map = new Map<string, number>();
     sorted.forEach((n, i) => map.set(n.id, i + 1));
     return map;
-  }, [notes, category]);
+  }, [notes]);
 
   const getAssociatedNoteIds = (voiceId: string): string[] => {
     const set = new Set<string>();
@@ -5609,13 +5607,12 @@ const WordsPage: React.FC<{
   };
 
   const sequenceMap = useMemo(() => {
-    // Filter notes by category so each category has independent sequence numbering
-    const categoryNotes = notes.filter(n => (n.category || 'personal') === category);
-    const sorted = [...categoryNotes].sort((a, b) => a.timestamp - b.timestamp);
+    // Map notes to sequence numbers
+    const sorted = [...notes].sort((a, b) => a.timestamp - b.timestamp);
     const map = new Map<string, number>();
     sorted.forEach((n, i) => map.set(n.id, i + 1));
     return map;
-  }, [notes, category]);
+  }, [notes]);
 
   const groups = useMemo(() => {
     const byNote = new Map<string, typeof words>();
