@@ -45,7 +45,9 @@ import {
   Gauge,
   Menu,
   Share,
-  Star
+  Star,
+  MapPin,
+  BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -556,7 +558,196 @@ interface Note {
   timestamp: number; // For sorting
   tags: string[];
   rawContent: string;
+  category?: 'personal' | 'tvseries'; // New:区分个人笔记和英美剧对话
 }
+
+// 英美剧对话笔记的解析结果
+interface TVDialogue {
+  id: string;
+  title: string;
+  source: string; // 来源如 "Friends 第一集"
+  dialogues: {
+    original: string; // 原文对话
+    scene: string; // 场景描述
+    phrases: { word: string; phonetic: string; partOfSpeech: string; meaning: string }[];
+    idioms: { expression: string; usage: string; example: string }[];
+    practice: { scenario: string; example: string }[];
+  }[];
+}
+
+// 解析英美剧对话笔记的Markdown内容
+const parseTVDialogueContent = (raw: string): TVDialogue => {
+  const result: TVDialogue = {
+    id: '',
+    title: '',
+    source: '',
+    dialogues: []
+  };
+
+  if (!raw || typeof raw !== 'string') {
+    return result;
+  }
+
+  const lines = raw.split('\n');
+  let currentDialogue: TVDialogue['dialogues'][0] | null = null;
+  let currentSection = '';
+  let currentPhrases: TVDialogue['dialogues'][0]['phrases'] = [];
+  let currentIdioms: TVDialogue['dialogues'][0]['idioms'] = [];
+  let currentPractice: TVDialogue['dialogues'][0]['practice'] = [];
+  let currentIdiom: { expression: string; usage: string; example: string } | null = null;
+
+  // Extract title from first H1
+  const titleMatch = raw.match(/^#\s+(.+)$/m);
+  if (titleMatch) {
+    result.title = titleMatch[1].trim();
+    result.source = titleMatch[1].trim();
+  }
+
+  // Split by --- to handle dialogue sections
+  const sections = raw.split(/^---+$/m);
+
+  for (const section of sections) {
+    const sectionLines = section.split('\n');
+
+    for (let i = 0; i < sectionLines.length; i++) {
+      const line = sectionLines[i];
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      // Section headers
+      if (trimmed.startsWith('### 原文对话')) {
+        currentSection = 'original';
+        if (!currentDialogue) {
+          currentDialogue = { original: '', scene: '', phrases: [], idioms: [], practice: [] };
+        }
+        continue;
+      } else if (trimmed.startsWith('### 场景描述')) {
+        currentSection = 'scene';
+        continue;
+      } else if (trimmed.startsWith('### 重点词组')) {
+        currentSection = 'phrases';
+        continue;
+      } else if (trimmed.startsWith('### 俚语标注')) {
+        currentSection = 'idioms';
+        continue;
+      } else if (trimmed.startsWith('### 仿写练习')) {
+        currentSection = 'practice';
+        continue;
+      } else if (trimmed.startsWith('## 对话 ') || trimmed.startsWith('## ')) {
+        // New dialogue entry
+        if (currentDialogue && currentDialogue.original) {
+          currentDialogue.phrases = [...currentPhrases];
+          currentDialogue.idioms = [...currentIdioms];
+          currentDialogue.practice = [...currentPractice];
+          result.dialogues.push(currentDialogue);
+          currentPhrases = [];
+          currentIdioms = [];
+          currentPractice = [];
+        }
+        currentDialogue = { original: '', scene: '', phrases: [], idioms: [], practice: [] };
+        currentSection = '';
+        continue;
+      }
+
+      // Content parsing
+      if (currentSection === 'original' && currentDialogue) {
+        // Code block content
+        if (trimmed.startsWith('```')) {
+          continue;
+        }
+        // Role: dialogue format
+        const roleMatch = trimmed.match(/^(\w+):\s*(\(.+?\))?\s*(.+)$/);
+        if (roleMatch) {
+          const [, role, action, text] = roleMatch;
+          // Keep the original format: Speaker: (action) text
+          currentDialogue.original += `${role}:${action ? ' ' + action : ''} ${text}\n`;
+        } else if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('---')) {
+          currentDialogue.original += trimmed + '\n';
+        }
+      } else if (currentSection === 'scene' && currentDialogue) {
+        if (!trimmed.startsWith('#') && !trimmed.startsWith('---')) {
+          currentDialogue.scene += trimmed + ' ';
+        }
+      } else if (currentSection === 'phrases') {
+        // Parse: - `word` [phonetic] partOfSpeech. meaning
+        // Or: - `word` meaning
+        const phraseMatchWithPhonetic = trimmed.match(/^-\s+`(.+)`\s*\[([^\]]+)\]\s*(.+?)\.\s*(.+)$/);
+        const phraseMatchSimple = trimmed.match(/^-\s+`(.+)`\s+(.+)$/);
+        if (phraseMatchWithPhonetic) {
+          currentPhrases.push({
+            word: phraseMatchWithPhonetic[1],
+            phonetic: phraseMatchWithPhonetic[2],
+            partOfSpeech: phraseMatchWithPhonetic[3],
+            meaning: phraseMatchWithPhonetic[4]
+          });
+        } else if (phraseMatchSimple) {
+          currentPhrases.push({
+            word: phraseMatchSimple[1],
+            phonetic: '',
+            partOfSpeech: '',
+            meaning: phraseMatchSimple[2]
+          });
+        }
+      } else if (currentSection === 'idioms') {
+        // Parse: - `expression` - 用法
+        // Then next line: - 用法描述
+        const idiomMatch = trimmed.match(/^-\s+`(.+)`\s*-\s*(.+)$/);
+        if (idiomMatch) {
+          // Save previous idiom if exists
+          if (currentIdiom) {
+            currentIdioms.push(currentIdiom);
+          }
+          currentIdiom = {
+            expression: idiomMatch[1],
+            usage: idiomMatch[2],
+            example: ''
+          };
+        } else if (trimmed.startsWith('- ') && currentIdiom) {
+          // This is likely 用法 or 例句 description
+          if (!currentIdiom.usage.includes(':') && !trimmed.includes('例句')) {
+            currentIdiom.usage += ' ' + trimmed.replace(/^-\s*/, '');
+          } else if (trimmed.includes('例句')) {
+            currentIdiom.example = trimmed.replace(/^.*例句[：:]\s*/, '');
+          }
+        }
+      } else if (currentSection === 'practice') {
+        // Parse: **可替换场景**: or **示例**:
+        if (trimmed.startsWith('**可替换场景**') || trimmed.startsWith('**示例**')) {
+          if (currentPractice.length > 0 && currentPractice[currentPractice.length - 1].example) {
+            // Save previous practice
+          } else if (currentPractice.length === 0) {
+            currentPractice.push({ scenario: '', example: '' });
+          }
+          if (currentPractice.length > 0) {
+            currentPractice[currentPractice.length - 1].scenario = trimmed.replace(/\*\*/g, '').replace(/[：:]/, ': ').trim();
+          }
+        } else if (trimmed.startsWith('```')) {
+          continue;
+        } else if (currentPractice.length > 0 && trimmed && !trimmed.startsWith('#')) {
+          currentPractice[currentPractice.length - 1].example += trimmed + '\n';
+        }
+      }
+    }
+  }
+
+  // Push last idiom if exists
+  if (currentIdiom) {
+    currentIdioms.push(currentIdiom);
+  }
+
+  // Push last dialogue
+  if (currentDialogue) {
+    currentDialogue.phrases = [...currentPhrases];
+    currentDialogue.idioms = [...currentIdioms];
+    currentDialogue.practice = [...currentPractice];
+    result.dialogues.push(currentDialogue);
+  }
+
+  // Generate ID from title
+  result.id = result.title.toLowerCase().replace(/\s+/g, '-');
+
+  return result;
+};
 
 interface VoiceItem {
   id: string;
@@ -2526,8 +2717,10 @@ const NotesList: React.FC<{
   onDeleteNote: (id: string) => void,
   filterTag: string | null,
   onSetFilterTag: (tag: string | null) => void,
-  isTouch?: boolean
-}> = ({ notes, onSelectNote, onAddNote, onDeleteNote, filterTag, onSetFilterTag, isTouch = false }) => {
+  isTouch?: boolean,
+  category: 'personal' | 'tvseries',
+  onCategoryChange: (category: 'personal' | 'tvseries') => void
+}> = ({ notes, onSelectNote, onAddNote, onDeleteNote, filterTag, onSetFilterTag, isTouch = false, category, onCategoryChange }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [showMoreTags, setShowMoreTags] = useState(false);
   const moreTagsRef = useRef<HTMLDivElement>(null);
@@ -2557,55 +2750,78 @@ const NotesList: React.FC<{
   };
 
   const sequenceMap = useMemo(() => {
-    const sorted = [...notes].sort((a, b) => a.timestamp - b.timestamp);
+    // Filter notes by category so each category has independent sequence numbering
+    const categoryNotes = notes.filter(n => (n.category || 'personal') === category);
+    const sorted = [...categoryNotes].sort((a, b) => a.timestamp - b.timestamp);
     const map = new Map<string, number>();
     sorted.forEach((n, i) => map.set(n.id, i + 1));
     return map;
-  }, [notes]);
+  }, [notes, category]);
 
-  // Extract all unique tags sorted by most recent use
+  // Extract all unique tags sorted by most recent use (filtered by category)
   const allTags = useMemo(() => {
     const tagMap = new Map<string, number>();
-    notes.forEach(note => {
-      note.tags.forEach(t => {
-        // Keep the most recent timestamp for each tag
-        if (!tagMap.has(t) || tagMap.get(t)! < note.timestamp) {
-          tagMap.set(t, note.timestamp);
-        }
+    notes
+      .filter(n => (n.category || 'personal') === category)
+      .forEach(note => {
+        note.tags.forEach(t => {
+          // Keep the most recent timestamp for each tag
+          if (!tagMap.has(t) || tagMap.get(t)! < note.timestamp) {
+            tagMap.set(t, note.timestamp);
+          }
+        });
       });
-    });
     // Sort by timestamp descending (most recent first)
     return Array.from(tagMap.entries())
       .sort((a, b) => b[1] - a[1])
       .map(([tag]) => tag);
-  }, [notes]);
+  }, [notes, category]);
 
   const filteredNotes = useMemo(() => {
     let res = [...notes];
+    // Filter by category (notes without category are treated as personal)
+    res = res.filter(n => (n.category || 'personal') === category);
     if (filterTag) {
       res = res.filter(n => n.tags.includes(filterTag));
     }
     return res.sort((a, b) => b.timestamp - a.timestamp);
-  }, [notes, filterTag]);
+  }, [notes, filterTag, category]);
 
   return (
-    <motion.div 
+    <motion.div
       className="min-h-screen bg-[#09090b] text-[#e4e4e7] p-4 pb-24"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, x: -20 }}
     >
-      <header className="mb-6 mt-4 px-2 flex justify-between items-end">
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-1">My Notes</h1>
-          <p className="text-neutral-500 text-sm">Review your daily progress</p>
+      <header className="mb-4 mt-4 px-2">
+        {/* Category Switcher */}
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => onCategoryChange('personal')}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${category === 'personal' ? 'bg-teal-600 text-white' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
+          >
+            个人笔记
+          </button>
+          <button
+            onClick={() => onCategoryChange('tvseries')}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${category === 'tvseries' ? 'bg-teal-600 text-white' : 'bg-[#18181b] text-neutral-400 border border-white/10'}`}
+          >
+            英美剧对话
+          </button>
         </div>
-        <button 
-          onClick={onAddNote}
-          className="w-10 h-10 rounded-full bg-teal-600 text-white flex items-center justify-center shadow-lg hover:bg-teal-500 transition-colors"
-        >
-          <Plus size={24} />
-        </button>
+        <div className="flex justify-between items-end">
+          <div>
+            <h1 className="text-2xl font-bold text-white mb-1">{category === 'personal' ? 'My Notes' : 'TV Dialogues'}</h1>
+            <p className="text-neutral-500 text-sm">{category === 'personal' ? 'Review your daily progress' : 'Learn from TV shows & movies'}</p>
+          </div>
+          <button
+            onClick={onAddNote}
+            className="w-10 h-10 rounded-full bg-teal-600 text-white flex items-center justify-center shadow-lg hover:bg-teal-500 transition-colors"
+          >
+            <Plus size={24} />
+          </button>
+        </div>
       </header>
 
       {/* Tags Filter */}
@@ -2782,6 +2998,7 @@ const NotesDetail: React.FC<{
   onAddWord: (word: string, translation?: string, structuredData?: { phonetic?: string; partOfSpeech?: string }) => void
 }> = ({ note, words, onNavigateToShadow, onBack, onSave, onDelete, savedVoices, onPlayVoice, isTouch = false, sentenceVoiceAssociations, onUpdateAssociations, onAddWord }) => {
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
+  const [activeScene, setActiveScene] = useState<number>(0);
   const [isEditing, setIsEditing] = useState(note.rawContent === "");
   const [rawText, setRawText] = useState(note.rawContent);
   const [showToast, setShowToast] = useState<string | null>(null);
@@ -4311,11 +4528,13 @@ const VoiceCollection: React.FC<{
   };
 
   const sequenceMap = useMemo(() => {
-    const sorted = [...notes].sort((a, b) => a.timestamp - b.timestamp);
+    // Filter notes by category so each category has independent sequence numbering
+    const categoryNotes = notes.filter(n => (n.category || 'personal') === category);
+    const sorted = [...categoryNotes].sort((a, b) => a.timestamp - b.timestamp);
     const map = new Map<string, number>();
     sorted.forEach((n, i) => map.set(n.id, i + 1));
     return map;
-  }, [notes]);
+  }, [notes, category]);
 
   const getAssociatedNoteIds = (voiceId: string): string[] => {
     const set = new Set<string>();
@@ -4545,6 +4764,784 @@ const VoiceCollection: React.FC<{
 };
 
 // ==========================================
+// COMPONENT: TV DIALOGUE DETAIL
+// ==========================================
+
+const TVDialogueDetail: React.FC<{
+  note: Note,
+  words: Word[],
+  onNavigateToShadow: (text: string) => void,
+  onBack: () => void,
+  onSave: (updatedNote: Note) => void,
+  onDelete: (id: string) => void,
+  savedVoices: VoiceItem[],
+  onPlayVoice: (voice: VoiceItem) => void,
+  isTouch?: boolean,
+  sentenceVoiceAssociations: Record<string, string[]>,
+  onUpdateAssociations: (sentenceKey: string, voiceIds: string[]) => void,
+  onAddWord: (word: string, translation?: string, structuredData?: { phonetic?: string; partOfSpeech?: string }) => void
+}> = ({ note, words, onNavigateToShadow, onBack, onSave, onDelete, savedVoices, onPlayVoice, isTouch = false, sentenceVoiceAssociations, onUpdateAssociations, onAddWord }) => {
+  const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
+  const [activeScene, setActiveScene] = useState<number>(0);
+  const [isEditing, setIsEditing] = useState(note.rawContent === "");
+  const [rawText, setRawText] = useState(note.rawContent);
+  const [showToast, setShowToast] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const detailContentRef = useRef<HTMLDivElement>(null);
+  const [wordModal, setWordModal] = useState<{ word: string; noteId?: string; translation?: string; loading: boolean; structuredData?: any } | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isLoadingFile, setIsLoadingFile] = useState(false);
+
+  // Handle file upload
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsLoadingFile(true);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setRawText(content);
+      setIsLoadingFile(false);
+    };
+    reader.onerror = () => {
+      setIsLoadingFile(false);
+      handleShowToast('Failed to read file');
+    };
+    reader.readAsText(file);
+  };
+
+  // Trigger file input click
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Parse content
+  const parsedContent = useMemo(() => {
+    try {
+      return parseTVDialogueContent(rawText);
+    } catch (e) {
+      console.error('Parse error:', e);
+      return { id: '', title: 'Error', source: '', dialogues: [] };
+    }
+  }, [rawText]);
+
+  // Set default accordion to first practice
+  useEffect(() => {
+    if (parsedContent.dialogues.length > 0) {
+      const firstDialogue = parsedContent.dialogues[0];
+      if (firstDialogue.practice.length > 0) {
+        setActiveAccordion('practice-0-0');
+      }
+    }
+  }, [parsedContent]);
+
+  // Voice Association State
+  const [openVoiceDropdown, setOpenVoiceDropdown] = useState<string | null>(null);
+  const [openPlayDropdown, setOpenPlayDropdown] = useState<string | null>(null);
+
+  // Detail Page Player State
+  const [detailPlayingVoice, setDetailPlayingVoice] = useState<VoiceItem | null>(null);
+  const [detailIsPlaying, setDetailIsPlaying] = useState(false);
+  const [detailPlaybackSpeed, setDetailPlaybackSpeed] = useState(1);
+  const [showDetailSpeedPopup, setShowDetailSpeedPopup] = useState(false);
+  const [detailCurrentTime, setDetailCurrentTime] = useState(0);
+  const [detailDuration, setDetailDuration] = useState(0);
+  const [detailVoiceList, setDetailVoiceList] = useState<VoiceItem[]>([]);
+  const [detailVoiceIndex, setDetailVoiceIndex] = useState(0);
+  const [showVoiceListPopup, setShowVoiceListPopup] = useState(false);
+  const detailAudioRef = React.useRef<HTMLAudioElement | null>(null);
+
+  // Handle playing voice in detail page
+  const handlePlayVoiceInDetail = (voice: VoiceItem, voiceList?: VoiceItem[]) => {
+    if (detailPlayingVoice?.id === voice.id) {
+      if (detailIsPlaying) {
+        detailAudioRef.current?.pause();
+        setDetailIsPlaying(false);
+      } else {
+        detailAudioRef.current?.play();
+        setDetailIsPlaying(true);
+      }
+    } else {
+      if (detailAudioRef.current) {
+        detailAudioRef.current.src = voice.audioUrl;
+        detailAudioRef.current.play();
+        setDetailPlayingVoice(voice);
+        setDetailIsPlaying(true);
+        if (voiceList && voiceList.length > 0) {
+          setDetailVoiceList(voiceList);
+          const idx = voiceList.findIndex(v => v.id === voice.id);
+          setDetailVoiceIndex(idx >= 0 ? idx : 0);
+        }
+      }
+    }
+  };
+
+  // Handle audio events
+  React.useEffect(() => {
+    const audio = detailAudioRef.current;
+    if (!audio) return;
+    const handleEnded = () => {
+      setDetailIsPlaying(false);
+      setDetailPlayingVoice(null);
+      setDetailCurrentTime(0);
+    };
+    const handleTimeUpdate = () => {
+      setDetailCurrentTime(audio.currentTime);
+    };
+    const handleLoadedMetadata = () => {
+      setDetailDuration(audio.duration);
+    };
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    return () => {
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+    };
+  }, []);
+
+  // Update playback speed when changed
+  React.useEffect(() => {
+    if (detailAudioRef.current) {
+      detailAudioRef.current.playbackRate = detailPlaybackSpeed;
+    }
+  }, [detailPlaybackSpeed]);
+
+  const getSentenceKey = (dialogueIndex: number, section: string) => {
+    return `${note.id}-${dialogueIndex}-${section}`;
+  };
+
+  const getAssociatedVoices = (sentenceKey: string): VoiceItem[] => {
+    const voiceIds = sentenceVoiceAssociations[sentenceKey] || [];
+    return savedVoices.filter(v => voiceIds.includes(v.id));
+  };
+
+  const globallyUsedVoiceIds = useMemo(() => {
+    const set = new Set<string>();
+    Object.values(sentenceVoiceAssociations).forEach(arr => {
+      arr.forEach(id => set.add(id));
+    });
+    return Array.from(set);
+  }, [sentenceVoiceAssociations]);
+
+  const associateVoice = (sentenceKey: string, voiceId: string) => {
+    const current = sentenceVoiceAssociations[sentenceKey] || [];
+    if (current.includes(voiceId)) return;
+    onUpdateAssociations(sentenceKey, [...current, voiceId]);
+    setOpenVoiceDropdown(null);
+  };
+
+  const removeVoiceAssociation = (sentenceKey: string, voiceId: string) => {
+    const current = sentenceVoiceAssociations[sentenceKey] || [];
+    onUpdateAssociations(sentenceKey, current.filter(id => id !== voiceId));
+  };
+
+  const toggleAccordion = (id: string) => {
+    setActiveAccordion(activeAccordion === id ? null : id);
+  };
+
+  const handleShowToast = (msg: string) => {
+    setShowToast(msg);
+    setTimeout(() => setShowToast(null), 2000);
+  };
+
+  const handleBack = () => {
+    if (note.rawContent === "" && rawText === "") {
+      onDelete(note.id);
+    }
+    onBack();
+  };
+
+  const handleSave = () => {
+    onSave({
+      ...note,
+      title: parsedContent.title || 'Untitled',
+      rawContent: rawText
+    });
+    setIsEditing(false);
+  };
+
+  const handleGlobalClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (!target.closest('.voice-dropdown-container')) {
+      setOpenVoiceDropdown(null);
+      setOpenPlayDropdown(null);
+    }
+  };
+
+  const handleWordClick = async (word: string) => {
+    const cacheKey = `tr-${word.toLowerCase()}`;
+    const cached = getStorageItem<any>(STORAGE_KEYS.TRANSLATION_CACHE, {})[cacheKey];
+    if (cached) {
+      setWordModal({
+        word,
+        noteId: note.id,
+        translation: cached.translation,
+        loading: false,
+        structuredData: cached.structuredData
+      });
+      return;
+    }
+
+    setWordModal({ word, noteId: note.id, translation: undefined, loading: true });
+    abortControllerRef.current = new AbortController();
+    try {
+      const data = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: word, targetLang: 'zh' }),
+        signal: abortControllerRef.current.signal
+      }).then(r => r.json());
+
+      if (data && data.translatedText) {
+        let structuredData = null;
+        try {
+          const parsed = JSON.parse(data.translatedText);
+          structuredData = {
+            type: parsed.t || parsed.type,
+            meaningDesc: parsed.m || parsed.meaningDesc,
+            partOfSpeech: parsed.p || parsed.partOfSpeech,
+            phonetic: parsed.ph || parsed.phonetic,
+            collocations: parsed.c || parsed.collocations,
+            fullTranslation: parsed.f || parsed.fullTranslation
+          };
+        } catch (e) {
+          console.log('Not a JSON translation');
+        }
+
+        const translation = structuredData ? (structuredData.fullTranslation || "") : data.translatedText;
+
+        const currentCache = getStorageItem<any>(STORAGE_KEYS.TRANSLATION_CACHE, {});
+        currentCache[cacheKey] = { translation, structuredData };
+        const keys = Object.keys(currentCache);
+        if (keys.length > 200) {
+          delete currentCache[keys[0]];
+        }
+        setStorageItem(STORAGE_KEYS.TRANSLATION_CACHE, currentCache);
+
+        setWordModal({
+          word,
+          noteId: note.id,
+          translation,
+          loading: false,
+          structuredData
+        });
+      } else {
+        setWordModal({ word, noteId: note.id, translation: undefined, loading: false });
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return;
+      }
+      setWordModal({ word, noteId: note.id, translation: undefined, loading: false });
+    }
+  };
+
+  // Export note detail as image
+  const handleShareNote = async () => {
+    if (!detailContentRef.current) return;
+    try {
+      const dataUrl = await toPng(detailContentRef.current, {
+        backgroundColor: '#09090b',
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const file = new File([blob], `note-${note.date.replace(/\//g, '-')}.png`, { type: 'image/png' });
+
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'Save to Photos',
+            text: 'Shadow Reader Note'
+          });
+          setShowToast("Saved to Photos");
+          setTimeout(() => setShowToast(null), 2000);
+          return;
+        } catch (shareError: any) {
+          if (shareError.name === 'AbortError') return;
+          console.log('Share failed, falling back to download');
+        }
+      }
+
+      const link = document.createElement('a');
+      link.download = `note-${note.date.replace(/\//g, '-')}.png`;
+      link.href = dataUrl;
+      link.click();
+      setShowToast("Saved to Photos");
+      setTimeout(() => setShowToast(null), 2000);
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
+  };
+
+  const WordText: React.FC<{ text: string; className?: string }> = ({ text, className }) => {
+    const parts = text.split(/([A-Za-z][A-Za-z']*)/g);
+    return (
+      <p className={className} style={{ WebkitUserSelect: 'text', userSelect: 'text' }}>
+        {parts.map((part, idx) =>
+          /[A-Za-z][A-Za-z']*/.test(part) ? (
+            <span
+              key={idx}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleWordClick(part);
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              className="cursor-pointer hover:text-teal-300"
+              style={{ WebkitUserSelect: 'text', userSelect: 'text' }}
+            >
+              {part}
+            </span>
+          ) : (
+            <span key={idx} style={{ WebkitUserSelect: 'text', userSelect: 'text' }}>{part}</span>
+          )
+        )}
+      </p>
+    );
+  };
+
+  // Ensure note exists
+  if (!note || !note.id) {
+    return (
+      <div className="min-h-screen bg-[#09090b] text-[#e4e4e7] flex items-center justify-center">
+        <p className="text-neutral-500">Loading... (note: {note ? 'exists' : 'null'}, id: {note?.id || 'none'})</p>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div
+      className="min-h-screen bg-[#09090b] text-[#e4e4e7] font-sans pb-24"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 20 }}
+      onClick={handleGlobalClick}
+    >
+      {/* Header */}
+      <header className="sticky top-0 z-20 bg-[#09090b]/80 backdrop-blur-md border-b border-white/10 px-4 py-3 flex items-center gap-4">
+        <button
+          onClick={handleBack}
+          className="p-2 -ml-2 rounded-full text-neutral-400 hover:bg-white/5 hover:text-white transition-colors"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-sm font-medium truncate text-neutral-200">{note.title}</h1>
+          <p className="text-[10px] text-neutral-500 font-mono uppercase tracking-wider mt-0.5">{note.date}</p>
+        </div>
+        {isEditing && rawText && (
+          <button
+            onClick={() => setRawText('')}
+            className="p-2 rounded-full text-neutral-400 hover:bg-white/5 hover:text-red-400 transition-colors"
+            title="Clear all"
+          >
+            <Trash2 size={18} />
+          </button>
+        )}
+        <button
+          onClick={() => isEditing ? handleSave() : setIsEditing(true)}
+          className={`p-2 rounded-full transition-colors ${isEditing ? 'text-teal-400 bg-teal-950/30' : 'text-neutral-400 hover:bg-white/5 hover:text-white'}`}
+        >
+          {isEditing ? <Save size={18} /> : <Edit3 size={18} />}
+        </button>
+        <button
+          onClick={handleShareNote}
+          className="p-2 rounded-full text-neutral-400 hover:bg-white/5 hover:text-teal-400 transition-colors"
+          title="Export as image"
+        >
+          <Share size={18} />
+        </button>
+      </header>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="absolute inset-0 bg-black/60" onClick={() => setShowDeleteConfirm(false)} />
+            <motion.div className="relative bg-[#18181b] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+              <h3 className="text-lg font-semibold text-white mb-2">Delete Note</h3>
+              <p className="text-neutral-400 text-sm mb-6">Are you sure you want to delete this note? This action cannot be undone.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-2.5 rounded-full bg-neutral-800 text-neutral-300 font-medium hover:bg-neutral-700">Cancel</button>
+                <button onClick={() => { setShowDeleteConfirm(false); onDelete(note.id); }} className="flex-1 py-2.5 rounded-full bg-red-600 text-white font-medium hover:bg-red-500">Delete</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div
+        ref={detailContentRef}
+        className="bg-[#09090b]"
+        style={{
+          WebkitUserSelect: 'text',
+          userSelect: 'text',
+          WebkitTouchCallout: 'default',
+        }}
+      >
+        {isEditing ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="p-4 h-[calc(100vh-80px)] flex flex-col gap-4"
+          >
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".md,.markdown,.txt"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+
+            {/* File upload area */}
+            {!rawText ? (
+              <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-white/20 rounded-2xl bg-[#18181b]/50 hover:bg-[#18181b] hover:border-teal-500/50 transition-colors cursor-pointer" onClick={triggerFileUpload}>
+                {isLoadingFile ? (
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500" />
+                    <p className="text-neutral-400">Loading file...</p>
+                  </div>
+                ) : (
+                  <>
+                    <Upload size={48} className="text-neutral-500 mb-4" />
+                    <p className="text-neutral-300 font-medium mb-2">Upload Markdown File</p>
+                    <p className="text-neutral-500 text-sm">Click to select a .md file</p>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4 h-full">
+                <div className="flex items-center justify-between">
+                  <p className="text-neutral-400 text-sm">File loaded successfully!</p>
+                  <button
+                    onClick={triggerFileUpload}
+                    className="text-teal-400 text-sm hover:underline"
+                  >
+                    Upload different file
+                  </button>
+                </div>
+                <textarea
+                  value={rawText}
+                  onChange={(e) => setRawText(e.target.value)}
+                  className="w-full flex-1 min-h-[200px] bg-[#18181b] text-neutral-300 p-4 rounded-2xl border border-white/10 focus:border-teal-500/50 outline-none resize-none font-mono text-sm leading-relaxed overflow-y-auto"
+                  placeholder="Or paste content here..."
+                />
+              </div>
+            )}
+          </motion.div>
+        ) : (
+          <main className="p-4 space-y-8 max-w-2xl mx-auto">
+            {/* Source Header */}
+            <div className="text-center mb-8">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-600 bg-neutral-900 px-3 py-1 rounded-full border border-white/10">
+                {parsedContent.source}
+              </span>
+            </div>
+
+            {/* Scene Tab Navigation */}
+            <div className="flex flex-wrap gap-1 bg-[#18181b] rounded-xl p-1 border border-white/10 mb-6">
+              {parsedContent.dialogues.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveScene(idx)}
+                  className={`flex-1 min-w-[60px] px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    activeScene === idx
+                      ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30'
+                      : 'text-neutral-400 hover:text-neutral-200 hover:bg-white/5'
+                  }`}
+                >
+                  Scene {idx + 1}
+                </button>
+              ))}
+            </div>
+
+            {/* Active Scene Content */}
+            {parsedContent.dialogues.map((dialogue, idx) => {
+              if (idx !== activeScene) return null;
+              return (
+                <section key={idx} className="space-y-6">
+                  {/* 1. Scene Description */}
+                  {dialogue.scene && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <MapPin size={14} className="text-teal-500/70" />
+                        <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Scene</h2>
+                      </div>
+                      <p className="text-sm text-neutral-400">{dialogue.scene.trim()}</p>
+                    </div>
+                  )}
+
+                  {/* 2. Original Dialogue */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <MessageSquare size={14} className="text-teal-500/70" />
+                      <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Original Dialogue</h2>
+                    </div>
+                    <div className="bg-[#18181b] border border-white/10 rounded-2xl p-4 space-y-3">
+                      {dialogue.original.split('\n').filter(line => line.trim()).map((line, lineIdx) => {
+                        const match = line.match(/^(\w+):\s*(\(.+?\))?\s*(.+)$/);
+                        const sentenceKey = getSentenceKey(idx, `line-${lineIdx}`);
+                        const associatedVoices = getAssociatedVoices(sentenceKey);
+                        if (match) {
+                          const [, speaker, action, text] = match;
+                          const fullText = `${speaker}${action ? ' ' + action : ''}: ${text}`;
+                          return (
+                            <div key={lineIdx} className="flex items-start gap-3">
+                              <div className="flex-1 flex flex-wrap gap-x-2 gap-y-1 min-w-0">
+                                <span className="font-bold text-teal-400 shrink-0">{speaker}</span>
+                                {action && <span className="text-pink-400 italic shrink-0">{action}</span>}
+                                <span className="text-neutral-300 break-words">{text}</span>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <VoiceDropdown
+                                  sentenceKey={sentenceKey}
+                                  associatedVoices={associatedVoices}
+                                  savedVoices={savedVoices}
+                                  globallyUsedVoiceIds={globallyUsedVoiceIds}
+                                  isOpen={openVoiceDropdown === sentenceKey}
+                                  onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === sentenceKey ? null : sentenceKey)}
+                                  isPlayDropdownOpen={openPlayDropdown === sentenceKey}
+                                  onTogglePlayDropdown={() => setOpenPlayDropdown(openPlayDropdown === sentenceKey ? null : sentenceKey)}
+                                  onAssociate={(voiceId) => associateVoice(sentenceKey, voiceId)}
+                                  onRemove={(voiceId) => removeVoiceAssociation(sentenceKey, voiceId)}
+                                  onPlay={handlePlayVoiceInDetail}
+                                  onShowToast={handleShowToast}
+                                  isTouch={isTouch}
+                                  closeOtherDropdown={() => setOpenPlayDropdown(null)}
+                                  closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                                  align="right"
+                                />
+                                <button
+                                  onClick={() => onNavigateToShadow(fullText)}
+                                  className="opacity-100 transition-opacity p-1 -mr-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400 shrink-0"
+                                  title="Shadow this sentence"
+                                >
+                                  <Headphones size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return <div key={lineIdx} className="text-neutral-300">{line}</div>;
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 3. Key Phrases */}
+                  {dialogue.phrases.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <BookOpen size={14} className="text-teal-500/70" />
+                        <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Key Phrases</h2>
+                      </div>
+                      <div className="grid gap-2">
+                        {dialogue.phrases.map((phrase, pIdx) => (
+                          <div key={pIdx} className="bg-[#18181b] border border-white/10 rounded-xl p-3 flex items-start gap-3">
+                            <span className="font-mono text-sm text-teal-200 font-medium">{phrase.word}</span>
+                            <span className="text-xs text-neutral-500">{phrase.phonetic}</span>
+                            <span className="text-xs text-neutral-600">{phrase.partOfSpeech}.</span>
+                            <span className="text-xs text-neutral-400">{phrase.meaning}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4. Idioms & Slang */}
+                  {dialogue.idioms.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles size={14} className="text-teal-500/70" />
+                        <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Idioms & Slang</h2>
+                      </div>
+                      <div className="space-y-3">
+                        {dialogue.idioms.map((idiom, iIdx) => (
+                          <div key={iIdx} className="bg-[#18181b] border border-white/10 rounded-xl p-4">
+                            <div className="flex items-start gap-3">
+                              <span className="font-mono text-sm text-teal-200 font-medium">{idiom.expression}</span>
+                            </div>
+                            <div className="mt-2 pl-0">
+                              <p className="text-xs text-neutral-500 mb-1">Usage: <span className="text-neutral-400">{idiom.usage}</span></p>
+                              <p className="text-xs text-neutral-500">Example: <span className="text-neutral-400 italic">{idiom.example}</span></p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 5. Practice */}
+                  {dialogue.practice.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <RefreshCw size={14} className="text-teal-500/70" />
+                        <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Practice</h2>
+                      </div>
+                      {dialogue.practice.map((practice, pIdx) => (
+                        <div key={pIdx} className="bg-[#18181b] border border-white/10 rounded-xl overflow-hidden">
+                          <button
+                            onClick={() => toggleAccordion(`practice-${idx}-${pIdx}`)}
+                            className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors"
+                          >
+                            <span className="text-sm text-neutral-300">{practice.scenario}</span>
+                            {activeAccordion === `practice-${idx}-${pIdx}` ? (
+                              <ChevronUp size={16} className="text-neutral-500" />
+                            ) : (
+                              <ChevronDown size={16} className="text-neutral-500" />
+                            )}
+                          </button>
+                          <AnimatePresence>
+                            {activeAccordion === `practice-${idx}-${pIdx}` && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden bg-black/20"
+                              >
+                                <div className="p-4 pt-0 border-t border-white/10">
+                                  <div className="pt-3 space-y-2">
+                                    {practice.example.split('\n').filter(line => line.trim()).map((line, lineIdx) => {
+                                      const match = line.match(/^(\w+):\s*(\(.+?\))?\s*(.+)$/);
+                                      if (match) {
+                                        const [, speaker, action, text] = match;
+                                        const fullText = `${speaker}${action ? ' ' + action : ''}: ${text}`;
+                                        const sentenceKey = getSentenceKey(idx, `practice-${pIdx}-line-${lineIdx}`);
+                                        const associatedVoices = getAssociatedVoices(sentenceKey);
+                                        return (
+                                          <div key={lineIdx} className="flex items-start gap-3">
+                                            <div className="flex-1 flex flex-wrap gap-x-2 gap-y-1 min-w-0">
+                                              <span className="font-bold text-teal-400 shrink-0">{speaker}</span>
+                                              {action && <span className="text-pink-400 italic shrink-0">{action}</span>}
+                                              <span className="text-neutral-300 break-words">{text}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                              <VoiceDropdown
+                                                sentenceKey={sentenceKey}
+                                                associatedVoices={associatedVoices}
+                                                savedVoices={savedVoices}
+                                                globallyUsedVoiceIds={globallyUsedVoiceIds}
+                                                isOpen={openVoiceDropdown === sentenceKey}
+                                                onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === sentenceKey ? null : sentenceKey)}
+                                                isPlayDropdownOpen={openPlayDropdown === sentenceKey}
+                                                onTogglePlayDropdown={() => setOpenPlayDropdown(openPlayDropdown === sentenceKey ? null : sentenceKey)}
+                                                onAssociate={(voiceId) => associateVoice(sentenceKey, voiceId)}
+                                                onRemove={(voiceId) => removeVoiceAssociation(sentenceKey, voiceId)}
+                                                onPlay={handlePlayVoiceInDetail}
+                                                onShowToast={handleShowToast}
+                                                isTouch={isTouch}
+                                                closeOtherDropdown={() => setOpenPlayDropdown(null)}
+                                                closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                                                align="right"
+                                              />
+                                              <button
+                                                onClick={() => onNavigateToShadow(fullText)}
+                                                className="opacity-100 transition-opacity p-1 -mr-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400 shrink-0"
+                                                title="Shadow this sentence"
+                                              >
+                                                <Headphones size={14} />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                      return <div key={lineIdx} className="text-xs text-neutral-400">{line}</div>;
+                                    })}
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </main>
+        )}
+      </div>
+
+      {/* Word Modal */}
+      <AnimatePresence>
+        {wordModal && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setWordModal(null)}
+          >
+            <div className="absolute inset-0 bg-black/60" />
+            <motion.div
+              className="relative bg-[#18181b] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {wordModal.loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-500" />
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-lg font-semibold text-white mb-2">{wordModal.word}</h3>
+                  {wordModal.structuredData?.phonetic && (
+                    <p className="text-sm text-neutral-500 mb-2">{wordModal.structuredData.phonetic}</p>
+                  )}
+                  {wordModal.structuredData?.partOfSpeech && (
+                    <p className="text-xs text-teal-500 mb-3">{wordModal.structuredData.partOfSpeech}</p>
+                  )}
+                  <p className="text-neutral-300 mb-4">{wordModal.translation}</p>
+                  <button
+                    onClick={() => {
+                      onAddWord(wordModal.word, wordModal.translation, {
+                        phonetic: wordModal.structuredData?.phonetic,
+                        partOfSpeech: wordModal.structuredData?.partOfSpeech
+                      });
+                      setWordModal(null);
+                      handleShowToast('Added to Words');
+                    }}
+                    className="w-full py-2.5 rounded-full bg-teal-600 text-white font-medium hover:bg-teal-500"
+                  >
+                    Add to Words
+                  </button>
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Toast */}
+      <AnimatePresence>
+        {showToast && (
+          <motion.div
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-neutral-800 text-white px-4 py-2 rounded-full text-sm shadow-lg z-50"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+          >
+            {showToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
+
+// ==========================================
 // COMPONENT: BOTTOM NAVIGATION
 // ==========================================
 
@@ -4612,11 +5609,13 @@ const WordsPage: React.FC<{
   };
 
   const sequenceMap = useMemo(() => {
-    const sorted = [...notes].sort((a, b) => a.timestamp - b.timestamp);
+    // Filter notes by category so each category has independent sequence numbering
+    const categoryNotes = notes.filter(n => (n.category || 'personal') === category);
+    const sorted = [...categoryNotes].sort((a, b) => a.timestamp - b.timestamp);
     const map = new Map<string, number>();
     sorted.forEach((n, i) => map.set(n.id, i + 1));
     return map;
-  }, [notes]);
+  }, [notes, category]);
 
   const groups = useMemo(() => {
     const byNote = new Map<string, typeof words>();
@@ -5091,6 +6090,7 @@ export default function App() {
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [isNewNote, setIsNewNote] = useState(false);
   const [filterTag, setFilterTag] = useState<string | null>(null);
+  const [notesCategory, setNotesCategory] = useState<'personal' | 'tvseries'>('personal'); // Notes子分类
 
   const [isMigrating, setIsMigrating] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -5407,11 +6407,12 @@ export default function App() {
   const handleAddNote = () => {
     const newNote: Note = {
       id: `note-${Date.now()}`,
-      title: "New Note",
+      title: notesCategory === 'tvseries' ? "New TV Dialogue" : "New Note",
       date: new Date().toLocaleDateString(),
       timestamp: Date.now(),
       tags: [],
-      rawContent: ""
+      rawContent: "",
+      category: notesCategory
     };
     setSelectedNote(newNote);
     setIsNewNote(true);
@@ -5420,7 +6421,11 @@ export default function App() {
 
   const handleDeleteNote = async (id: string) => {
     try {
-      await apiFetch(`/api/notes/${id}`, { method: 'DELETE' });
+      try {
+        await apiFetch(`/api/notes/${id}`, { method: 'DELETE' });
+      } catch (apiError) {
+        console.log('API delete failed, deleting locally');
+      }
       const newNotes = notes.filter(n => n.id !== id);
       setNotes(newNotes);
       setStorageItem(STORAGE_KEYS.NOTES, newNotes);
@@ -5436,25 +6441,93 @@ export default function App() {
 
   const handleUpdateNote = async (updatedNote: Note) => {
     try {
-      const savedNote = await apiFetch('/api/notes', {
-        method: 'POST',
-        body: JSON.stringify(updatedNote)
-      });
+      // Ensure category is set - preserve existing category or default to current view's category
+      const noteToSave = {
+        ...updatedNote,
+        category: updatedNote.category || (notesCategory === 'tvseries' ? 'tvseries' : 'personal')
+      };
+
+      let finalNote = noteToSave;
+
+      try {
+        const savedNote = await apiFetch('/api/notes', {
+          method: 'POST',
+          body: JSON.stringify(noteToSave)
+        });
+        // Merge saved note with local category (API might not return category)
+        finalNote = { ...savedNote, category: noteToSave.category };
+      } catch (apiError) {
+        // API failed, use local note
+        console.log('API failed, saving locally');
+      }
+
+      // Always save to localStorage
       let newNotes = [...notes];
-      const index = newNotes.findIndex(n => n.id === savedNote.id);
+      const index = newNotes.findIndex(n => n.id === finalNote.id);
       if (index >= 0) {
-        newNotes[index] = savedNote;
+        newNotes[index] = finalNote;
       } else {
-        newNotes.unshift(savedNote);
+        newNotes.unshift(finalNote);
       }
       setNotes(newNotes);
       setStorageItem(STORAGE_KEYS.NOTES, newNotes);
       await setIDBItem(STORAGE_KEYS.NOTES, newNotes);
       setIsNewNote(false);
-      setSelectedNote(savedNote);
+      setSelectedNote(finalNote);
     } catch (error) {
       console.error('Failed to update note:', error);
     }
+  };
+
+  // Helper function to render the appropriate detail component based on note category
+  const renderNoteDetail = (note: Note) => {
+    const isTvSeries = note.category === 'tvseries' ||
+      (notesCategory === 'tvseries' && !note.category) ||
+      (note.rawContent && note.rawContent.includes('原文对话'));
+
+    if (isTvSeries) {
+      return (
+        <TVDialogueDetail
+          key={note.id}
+          note={note}
+          words={words}
+          onNavigateToShadow={handleNavigateToShadow}
+          onBack={() => {
+            setNotesView('list');
+            setIsNewNote(false);
+          }}
+          onSave={handleUpdateNote}
+          onDelete={handleDeleteNote}
+          savedVoices={savedVoices}
+          onPlayVoice={handlePlayVoice}
+          isTouch={isTouch}
+          sentenceVoiceAssociations={sentenceVoiceAssociations}
+          onUpdateAssociations={handleUpdateAssociations}
+          onAddWord={(word, translation, structuredData) => handleAddWord({ word, translation, structuredData, noteId: note.id, noteTitle: note.title })}
+        />
+      );
+    }
+
+    return (
+      <NotesDetail
+        key={note.id}
+        note={note}
+        words={words}
+        onNavigateToShadow={handleNavigateToShadow}
+        onBack={() => {
+          setNotesView('list');
+          setIsNewNote(false);
+        }}
+        onSave={handleUpdateNote}
+        onDelete={handleDeleteNote}
+        savedVoices={savedVoices}
+        onPlayVoice={handlePlayVoice}
+        isTouch={isTouch}
+        sentenceVoiceAssociations={sentenceVoiceAssociations}
+        onUpdateAssociations={handleUpdateAssociations}
+        onAddWord={(word, translation, structuredData) => handleAddWord({ word, translation, structuredData, noteId: note.id, noteTitle: note.title })}
+      />
+    );
   };
 
   const handleSelectNote = (note: Note) => {
@@ -5757,27 +6830,12 @@ Shadowing Practice
                 filterTag={filterTag}
                 onSetFilterTag={setFilterTag}
                 isTouch={isTouch}
+                category={notesCategory}
+                onCategoryChange={setNotesCategory}
               />
-            ) : selectedNote ? (
-              <NotesDetail
-                key={selectedNote.id}
-                note={selectedNote}
-                words={words}
-                onNavigateToShadow={handleNavigateToShadow}
-                onBack={() => {
-                  setNotesView('list');
-                  setIsNewNote(false);
-                }}
-                onSave={handleUpdateNote}
-                onDelete={handleDeleteNote}
-                savedVoices={savedVoices}
-                onPlayVoice={handlePlayVoice}
-                isTouch={isTouch}
-                sentenceVoiceAssociations={sentenceVoiceAssociations}
-                onUpdateAssociations={handleUpdateAssociations}
-                onAddWord={(word, translation, structuredData) => handleAddWord({ word, translation, structuredData, noteId: selectedNote.id, noteTitle: selectedNote.title })}
-              />
-            ) : null}
+            ) : (
+              selectedNote ? renderNoteDetail(selectedNote) : null
+            )}
           </AnimatePresence>
         );
       case 'shadow':
