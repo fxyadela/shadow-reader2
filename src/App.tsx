@@ -614,25 +614,29 @@ const parseTVDialogueContent = (raw: string): TVDialogue => {
       const trimmed = line.trim();
       if (!trimmed) continue;
 
-      // Section headers
-      if (trimmed.startsWith('### 原文对话')) {
-        currentSection = 'original';
-        if (!currentDialogue) {
-          currentDialogue = { original: '', scene: '', phrases: [], idioms: [], practice: [] };
+      // Section headers - support both emoji and plain versions
+      // New format: ### 💬 原文对话, ### 📍 场景描述, ### 📝 重点词组, ### 🗣️ 俚语标注, ### ✍️ 仿写练习
+      // Old format: ### 原文对话, ### 场景描述, ### 重点词组, ### 俚语标注, ### 仿写练习
+      if (trimmed.match(/^###\s*[\💬📝🗣️✍️📍]*\s*(原文对话|重点词组|俚语标注|仿写练习|场景描述)/)) {
+        if (trimmed.includes('原文对话')) {
+          currentSection = 'original';
+          if (!currentDialogue) {
+            currentDialogue = { original: '', scene: '', phrases: [], idioms: [], practice: [] };
+          }
+          continue;
+        } else if (trimmed.includes('场景描述')) {
+          currentSection = 'scene';
+          continue;
+        } else if (trimmed.includes('重点词组')) {
+          currentSection = 'phrases';
+          continue;
+        } else if (trimmed.includes('俚语标注')) {
+          currentSection = 'idioms';
+          continue;
+        } else if (trimmed.includes('仿写练习')) {
+          currentSection = 'practice';
+          continue;
         }
-        continue;
-      } else if (trimmed.startsWith('### 场景描述')) {
-        currentSection = 'scene';
-        continue;
-      } else if (trimmed.startsWith('### 重点词组')) {
-        currentSection = 'phrases';
-        continue;
-      } else if (trimmed.startsWith('### 俚语标注')) {
-        currentSection = 'idioms';
-        continue;
-      } else if (trimmed.startsWith('### 仿写练习')) {
-        currentSection = 'practice';
-        continue;
       } else if (trimmed.startsWith('## 对话 ') || trimmed.startsWith('## ')) {
         // New dialogue entry
         if (currentDialogue && currentDialogue.original) {
@@ -651,11 +655,17 @@ const parseTVDialogueContent = (raw: string): TVDialogue => {
 
       // Content parsing
       if (currentSection === 'original' && currentDialogue) {
-        // Code block content
-        if (trimmed.startsWith('```')) {
+        // Skip code blocks and blockquotes markers
+        if (trimmed.startsWith('```') || trimmed.startsWith('>')) {
+          // Support new format: > **Role:** dialogue or > **Role (V.O.):** dialogue
+          const quoteMatch = trimmed.match(/^>\s*\*\*([^(]+)(?:\s*\(([^)]+)\))?:\*\*\s*(.+)$/);
+          if (quoteMatch) {
+            const [, role, action, text] = quoteMatch;
+            currentDialogue.original += `${role}${action ? ' (' + action + ')' : ''}: ${text}\n`;
+          }
           continue;
         }
-        // Role: dialogue format
+        // Old format: Role: dialogue
         const roleMatch = trimmed.match(/^(\w+):\s*(\(.+?\))?\s*(.+)$/);
         if (roleMatch) {
           const [, role, action, text] = roleMatch;
@@ -669,37 +679,57 @@ const parseTVDialogueContent = (raw: string): TVDialogue => {
           currentDialogue.scene += trimmed + ' ';
         }
       } else if (currentSection === 'phrases') {
-        // Parse: - `word` [phonetic] partOfSpeech. meaning
-        // Or: - `word` meaning
-        const phraseMatchWithPhonetic = trimmed.match(/^-\s+`(.+)`\s*\[([^\]]+)\]\s*(.+?)\.\s*(.+)$/);
-        const phraseMatchSimple = trimmed.match(/^-\s+`(.+)`\s+(.+)$/);
-        if (phraseMatchWithPhonetic) {
+        // New format: | 词组 | 释义 |
+        // Old format: - `word` [phonetic] partOfSpeech. meaning or - `word` meaning
+        const tableMatch = trimmed.match(/^\|\s*\*\*(.+)\*\*\s*\|\s*(.+)\s*\|$/);
+        if (tableMatch) {
           currentPhrases.push({
-            word: phraseMatchWithPhonetic[1],
-            phonetic: phraseMatchWithPhonetic[2],
-            partOfSpeech: phraseMatchWithPhonetic[3],
-            meaning: phraseMatchWithPhonetic[4]
-          });
-        } else if (phraseMatchSimple) {
-          currentPhrases.push({
-            word: phraseMatchSimple[1],
+            word: tableMatch[1],
             phonetic: '',
             partOfSpeech: '',
-            meaning: phraseMatchSimple[2]
+            meaning: tableMatch[2]
           });
+        } else {
+          const phraseMatchWithPhonetic = trimmed.match(/^-\s+`(.+)`\s*\[([^\]]+)\]\s*(.+?)\.\s*(.+)$/);
+          const phraseMatchSimple = trimmed.match(/^-\s+`(.+)`\s+(.+)$/);
+          if (phraseMatchWithPhonetic) {
+            currentPhrases.push({
+              word: phraseMatchWithPhonetic[1],
+              phonetic: phraseMatchWithPhonetic[2],
+              partOfSpeech: phraseMatchWithPhonetic[3],
+              meaning: phraseMatchWithPhonetic[4]
+            });
+          } else if (phraseMatchSimple) {
+            currentPhrases.push({
+              word: phraseMatchSimple[1],
+              phonetic: '',
+              partOfSpeech: '',
+              meaning: phraseMatchSimple[2]
+            });
+          }
         }
       } else if (currentSection === 'idioms') {
-        // Parse: - `expression` - 用法
-        // Then next line: - 用法描述
-        const idiomMatch = trimmed.match(/^-\s+`(.+)`\s*-\s*(.+)$/);
-        if (idiomMatch) {
+        // New format: - **"expression"** — usage/explanation
+        // Old format: - `expression` - 用法
+        const idiomMatchNew = trimmed.match(/^-\s+\*\*"(.+)"\*\*\s*[-–—]\s*(.+)$/);
+        const idiomMatchOld = trimmed.match(/^-\s+`(.+)`\s*-\s*(.+)$/);
+        if (idiomMatchNew) {
           // Save previous idiom if exists
           if (currentIdiom) {
             currentIdioms.push(currentIdiom);
           }
           currentIdiom = {
-            expression: idiomMatch[1],
-            usage: idiomMatch[2],
+            expression: '"' + idiomMatchNew[1] + '"',
+            usage: idiomMatchNew[2],
+            example: ''
+          };
+        } else if (idiomMatchOld) {
+          if (currentIdiom) {
+            currentIdioms.push(currentIdiom);
+          }
+          currentIdiom = {
+            expression: idiomMatchOld[1],
+            usage: idiomMatchOld[2],
             example: ''
           };
         } else if (trimmed.startsWith('- ') && currentIdiom) {
@@ -711,8 +741,27 @@ const parseTVDialogueContent = (raw: string): TVDialogue => {
           }
         }
       } else if (currentSection === 'practice') {
-        // Parse: **可替换场景**: or **示例**:
-        if (trimmed.startsWith('**可替换场景**') || trimmed.startsWith('**示例**')) {
+        // New format: **原句：** and **练习场景（xxx）：**
+        // Old format: **可替换场景**: or **示例**:
+        if (trimmed.match(/\*\*原句\*\*[：:]/)) {
+          // Start new practice with original sentence
+          currentPractice.push({ scenario: '', example: '' });
+          const match = trimmed.match(/\*\*原句\*\*[：:]\s*(.+)$/);
+          if (match && currentPractice.length > 0) {
+            currentPractice[currentPractice.length - 1].example = match[1] + '\n';
+          }
+        } else if (trimmed.match(/\*\*练习场景/)) {
+          // New scenario line
+          if (currentPractice.length === 0) {
+            currentPractice.push({ scenario: '', example: '' });
+          }
+          const match = trimmed.match(/\*\*练习场景（(.+)）：\*\*/);
+          if (match) {
+            currentPractice[currentPractice.length - 1].scenario = match[1];
+          } else {
+            currentPractice[currentPractice.length - 1].scenario = trimmed.replace(/\*\*/g, '').replace(/[：:]/, ': ').trim();
+          }
+        } else if (trimmed.startsWith('**可替换场景**') || trimmed.startsWith('**示例**')) {
           if (currentPractice.length > 0 && currentPractice[currentPractice.length - 1].example) {
             // Save previous practice
           } else if (currentPractice.length === 0) {
@@ -5290,17 +5339,18 @@ const TVDialogueDetail: React.FC<{
                     </div>
                     <div className="bg-[#18181b] border border-white/10 rounded-2xl p-4 space-y-3">
                       {dialogue.original.split('\n').filter(line => line.trim()).map((line, lineIdx) => {
-                        const match = line.match(/^(\w+):\s*(\(.+?\))?\s*(.+)$/);
+                        // Support both "Speaker:" and "Speaker (V.O.):" formats
+                        const match = line.match(/^([\w\s]+?)(?:\s*\(([^)]+)\))?:\s*(.+)$/);
                         const sentenceKey = getSentenceKey(idx, `line-${lineIdx}`);
                         const associatedVoices = getAssociatedVoices(sentenceKey);
                         if (match) {
                           const [, speaker, action, text] = match;
-                          const fullText = `${speaker}${action ? ' ' + action : ''}: ${text}`;
+                          const fullText = `${speaker.trim()}${action ? ' (' + action + ')' : ''}: ${text}`;
                           return (
                             <div key={lineIdx} className="flex items-start gap-3">
                               <div className="flex-1 flex flex-wrap gap-x-2 gap-y-1 min-w-0">
-                                <span className="font-bold text-teal-400 shrink-0">{speaker}</span>
-                                {action && <span className="text-pink-400 italic shrink-0">{action}</span>}
+                                <span className="font-bold text-teal-400 shrink-0">{speaker.trim()}</span>
+                                {action && <span className="text-pink-400 italic shrink-0">({action})</span>}
                                 <span className="text-neutral-300 break-words">{text}</span>
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
@@ -5412,17 +5462,18 @@ const TVDialogueDetail: React.FC<{
                                 <div className="p-4 pt-0 border-t border-white/10">
                                   <div className="pt-3 space-y-2">
                                     {practice.example.split('\n').filter(line => line.trim()).map((line, lineIdx) => {
-                                      const match = line.match(/^(\w+):\s*(\(.+?\))?\s*(.+)$/);
+                                      // Support both "Speaker:" and no-speaker formats
+                                      const match = line.match(/^([\w\s]+?)(?:\s*\(([^)]+)\))?:\s*(.+)$/);
+                                      const sentenceKey = getSentenceKey(idx, `practice-${pIdx}-line-${lineIdx}`);
+                                      const associatedVoices = getAssociatedVoices(sentenceKey);
                                       if (match) {
                                         const [, speaker, action, text] = match;
-                                        const fullText = `${speaker}${action ? ' ' + action : ''}: ${text}`;
-                                        const sentenceKey = getSentenceKey(idx, `practice-${pIdx}-line-${lineIdx}`);
-                                        const associatedVoices = getAssociatedVoices(sentenceKey);
+                                        const fullText = `${speaker.trim()}${action ? ' (' + action + ')' : ''}: ${text}`;
                                         return (
                                           <div key={lineIdx} className="flex items-start gap-3">
                                             <div className="flex-1 flex flex-wrap gap-x-2 gap-y-1 min-w-0">
-                                              <span className="font-bold text-teal-400 shrink-0">{speaker}</span>
-                                              {action && <span className="text-pink-400 italic shrink-0">{action}</span>}
+                                              <span className="font-bold text-teal-400 shrink-0">{speaker.trim()}</span>
+                                              {action && <span className="text-pink-400 italic shrink-0">({action})</span>}
                                               <span className="text-neutral-300 break-words">{text}</span>
                                             </div>
                                             <div className="flex items-center gap-1 shrink-0">
@@ -5455,7 +5506,39 @@ const TVDialogueDetail: React.FC<{
                                           </div>
                                         );
                                       }
-                                      return <div key={lineIdx} className="text-xs text-neutral-400">{line}</div>;
+                                      // No speaker - still allow voice association
+                                      return (
+                                        <div key={lineIdx} className="flex items-start gap-3">
+                                          <div className="flex-1 text-xs text-neutral-400">{line}</div>
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            <VoiceDropdown
+                                              sentenceKey={sentenceKey}
+                                              associatedVoices={associatedVoices}
+                                              savedVoices={savedVoices}
+                                              globallyUsedVoiceIds={globallyUsedVoiceIds}
+                                              isOpen={openVoiceDropdown === sentenceKey}
+                                              onToggle={() => setOpenVoiceDropdown(openVoiceDropdown === sentenceKey ? null : sentenceKey)}
+                                              isPlayDropdownOpen={openPlayDropdown === sentenceKey}
+                                              onTogglePlayDropdown={() => setOpenPlayDropdown(openPlayDropdown === sentenceKey ? null : sentenceKey)}
+                                              onAssociate={(voiceId) => associateVoice(sentenceKey, voiceId)}
+                                              onRemove={(voiceId) => removeVoiceAssociation(sentenceKey, voiceId)}
+                                              onPlay={handlePlayVoiceInDetail}
+                                              onShowToast={handleShowToast}
+                                              isTouch={isTouch}
+                                              closeOtherDropdown={() => setOpenPlayDropdown(null)}
+                                              closeMainDropdown={() => setOpenVoiceDropdown(null)}
+                                              align="right"
+                                            />
+                                            <button
+                                              onClick={() => onNavigateToShadow(line)}
+                                              className="opacity-100 transition-opacity p-1 -mr-1 hover:bg-white/10 rounded-full text-neutral-400 hover:text-teal-400 shrink-0"
+                                              title="Shadow this sentence"
+                                            >
+                                              <Headphones size={14} />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
                                     })}
                                   </div>
                                 </div>
