@@ -4929,6 +4929,11 @@ const TVDialogueDetail: React.FC<{
   React.useEffect(() => {
     const audio = detailAudioRef.current;
     if (!audio) return;
+
+    // Reset state when voice changes
+    setDetailCurrentTime(0);
+    setDetailDuration(0);
+
     const handleEnded = () => {
       setDetailIsPlaying(false);
       setDetailPlayingVoice(null);
@@ -4938,17 +4943,26 @@ const TVDialogueDetail: React.FC<{
       setDetailCurrentTime(audio.currentTime);
     };
     const handleLoadedMetadata = () => {
-      setDetailDuration(audio.duration);
+      if (audio.duration && !isNaN(audio.duration)) {
+        setDetailDuration(audio.duration);
+      }
+    };
+    const handleCanPlay = () => {
+      if (audio.duration && !isNaN(audio.duration)) {
+        setDetailDuration(audio.duration);
+      }
     };
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('canplay', handleCanPlay);
     return () => {
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('canplay', handleCanPlay);
     };
-  }, []);
+  }, [detailPlayingVoice]);
 
   // Update playback speed when changed
   React.useEffect(() => {
@@ -5615,6 +5629,158 @@ const TVDialogueDetail: React.FC<{
             exit={{ opacity: 0, y: 20 }}
           >
             {showToast}
+          </motion.div>
+        )}
+
+        {/* Hidden audio element for voice playback */}
+        <audio ref={detailAudioRef} />
+
+        {/* Detail Page Mini Player */}
+        {detailPlayingVoice && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-24 left-0 right-0 z-50 px-4"
+          >
+            {/* Slide down to close handle */}
+            <div className="max-w-3xl mx-auto mb-2 flex justify-center">
+              <button
+                onClick={() => {
+                  detailAudioRef.current?.pause();
+                  setDetailPlayingVoice(null);
+                }}
+                className="p-2 rounded-full bg-neutral-800/80 hover:bg-neutral-700 text-neutral-400 hover:text-white transition-colors"
+                title="Close player"
+              >
+                <ChevronDown size={20} />
+              </button>
+            </div>
+            <div className="max-w-3xl mx-auto bg-neutral-900/90 backdrop-blur-xl border border-white/10 rounded-3xl p-3 shadow-2xl">
+              {/* Progress Bar */}
+              <div className="mb-2">
+                <input
+                  type="range"
+                  min={0}
+                  max={detailDuration || 100}
+                  value={detailCurrentTime}
+                  onChange={(e) => {
+                    const time = parseFloat(e.target.value);
+                    detailAudioRef.current!.currentTime = time;
+                    setDetailCurrentTime(time);
+                    detailAudioRef.current!.play();
+                    setDetailIsPlaying(true);
+                  }}
+                  className="w-full h-1 bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-teal-500"
+                />
+                <div className="flex justify-between text-xs text-neutral-500 mt-1">
+                  <span>{Math.floor(detailCurrentTime)}s</span>
+                  <span>{Math.floor(detailDuration)}s</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0 flex items-center gap-2">
+                  <p className="text-sm font-medium text-white truncate">{detailPlayingVoice.title}</p>
+                  {/* Hamburger menu for voice list */}
+                  {detailVoiceList.length > 1 && (
+                    <div className="relative">
+                      <button
+                        onClick={() => {
+                          setShowVoiceListPopup(!showVoiceListPopup);
+                          setShowDetailSpeedPopup(false);
+                        }}
+                        className="p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                        title="Voice list"
+                      >
+                        <Menu size={14} />
+                      </button>
+                      {showVoiceListPopup && (
+                        <div className="absolute bottom-full left-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-1 shadow-xl z-[60] min-w-[160px] max-w-[200px] max-w-[calc(100vw-40px)]">
+                          {detailVoiceList.map((voice, idx) => (
+                            <button
+                              key={voice.id}
+                              onClick={() => {
+                                handlePlayVoiceInDetail(voice, detailVoiceList);
+                                setDetailVoiceIndex(idx);
+                                setShowVoiceListPopup(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 text-sm rounded-lg truncate block max-w-full ${idx === detailVoiceIndex ? 'bg-teal-500/20 text-teal-400' : 'text-neutral-200 hover:bg-white/5'}`}
+                            >
+                              {voice.title}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-0.5">
+                  {/* Seek backward */}
+                  <button
+                    onClick={() => {
+                      const newTime = Math.max(0, detailAudioRef.current!.currentTime - 5);
+                      detailAudioRef.current!.currentTime = newTime;
+                      setDetailCurrentTime(newTime);
+                    }}
+                    className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                    title="Back 5s"
+                  >
+                    <SkipBack size={14} />
+                  </button>
+
+                  {/* Restart */}
+                  <button
+                    onClick={() => {
+                      detailAudioRef.current!.currentTime = 0;
+                      setDetailCurrentTime(0);
+                    }}
+                    className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                    title="Restart"
+                  >
+                    <RotateCcw size={14} />
+                  </button>
+
+                  {/* Play/Pause - Circular */}
+                  <button
+                    onClick={() => handlePlayVoiceInDetail(detailPlayingVoice, detailVoiceList)}
+                    className="w-9 h-9 rounded-full bg-teal-500 hover:bg-teal-400 text-neutral-900 transition-colors flex items-center justify-center flex-shrink-0"
+                  >
+                    {detailIsPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
+                  </button>
+
+                  {/* Speed */}
+                  <div className="relative group flex-shrink-0">
+                    <button
+                      onClick={() => {
+                        setShowDetailSpeedPopup(!showDetailSpeedPopup);
+                        setShowVoiceListPopup(false);
+                      }}
+                      className="px-2 py-1 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors text-xs font-medium"
+                    >
+                      {detailPlaybackSpeed}x
+                    </button>
+                    {showDetailSpeedPopup && (
+                      <div className="absolute bottom-full right-0 mb-2 bg-neutral-800 rounded-xl border border-white/10 p-1 shadow-xl z-[60]">
+                        {[0.5, 0.75, 1, 1.25, 1.5, 2].map(speed => (
+                          <button
+                            key={speed}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDetailPlaybackSpeed(speed);
+                              setShowDetailSpeedPopup(false);
+                            }}
+                            className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg ${speed === detailPlaybackSpeed ? 'bg-teal-500/20 text-teal-400' : 'text-neutral-200 hover:bg-white/5'}`}
+                          >
+                            {speed}x
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
